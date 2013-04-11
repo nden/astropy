@@ -402,8 +402,8 @@ class NonLinearLSQFitter(Fitter):
                         
         super(NonLinearLSQFitter, self).__init__(model)
         if self.model.linear:
-            warnings.warning('Model is linear in parameters, '
-                                'consider using linear fitting methods.')
+            warnings.warn('Model is linear in parameters, '
+                          'consider using linear fitting methods.')
             
     def errorfunc(self, fps,  *args):
         self.fitpars = fps
@@ -520,8 +520,8 @@ class SLSQPFitter(Fitter):
         """
         super(SLSQPFitter, self).__init__(model)
         if self.model.linear:
-            warnings.warning('Model is linear in parameters, '
-                         'consider using linear fitting methods.')
+            warnings.warn('Model is linear in parameters, '
+                          'consider using linear fitting methods.')
         
         self.fit_info = {'final_func_val': None,
                          'numiter': None,
@@ -576,7 +576,7 @@ class SLSQPFitter(Fitter):
         from scipy import optimize
         x = np.asarray(x, dtype=np.float)
         
-        self._weights = w
+        self._weights = weights
         if self.model._parameters.paramdim != 1:
             # for now only single data sets ca be fitted
             raise ValueError("NonLinearLSQFitter can only fit "
@@ -703,7 +703,7 @@ class JointFitter(object):
         """
         from scipy import optimize
         assert(len(args) == reduce(lambda x, y: x+1 + y+1, self.modeldims))
-        self.fitpars[:], s = optimize.leastsq(self.errorfunc, self.fitpars, 
+        self.fitpars[:], _ = optimize.leastsq(self.errorfunc, self.fitpars, 
                                               args=args) 
         
         fpars = self.fitpars[:]
