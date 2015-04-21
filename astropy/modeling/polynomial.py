@@ -382,11 +382,10 @@ class Chebyshev1D(PolynomialModel):
 
         return (x,), format_info
 
-    @classmethod
-    def evaluate(cls, x, *coeffs):
-        if cls.domain is not None:
-            x = poly_map_domain(x, cls.domain, cls.window)
-        return cls.clenshaw(x, coeffs)
+    def evaluate(self, x, *coeffs):
+        if self.domain is not None:
+            x = poly_map_domain(x, self.domain, self.window)
+        return self.clenshaw(x, coeffs)
 
     @staticmethod
     def clenshaw(x, coeffs):
@@ -446,11 +445,10 @@ class Legendre1D(PolynomialModel):
 
         return (x,), format_info
 
-    @classmethod
-    def evaluate(cls, x, *coeffs):
-         if cls.domain is not None:
-            x = poly_map_domain(x, cls.domain, cls.window)
-        return cls.clenshaw(x, coeffs)
+    def evaluate(self, x, *coeffs):
+        if self.domain is not None:
+            x = poly_map_domain(x, self.domain, self.window)
+        return self.clenshaw(x, coeffs)
 
     def fit_deriv(self, x, *params):
         """
@@ -535,11 +533,10 @@ class Polynomial1D(PolynomialModel):
 
         return (x,), format_info
 
-    @classmethod
-    def evaluate(cls, x, *coeffs):
-        if cls.domain is not None:
-            x = poly_map_domain(x, cls.domain, cls.window)
-        return cls.horner(x, coeffs)
+    def evaluate(self, x, *coeffs):
+        if self.domain is not None:
+            x = poly_map_domain(x, self.domain, self.window)
+        return self.horner(x, coeffs)
 
     def fit_deriv(self, x, *params):
         """
