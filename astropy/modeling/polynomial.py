@@ -299,6 +299,10 @@ class OrthoPolynomialBase(PolynomialBase):
         raise NotImplementedError("Subclasses should implement this")
 
     def evaluate(self, x, y, *coeffs):
+        if self.x_domain is not None:
+            x = poly_map_domain(x, self.x_domain, self.x_window)
+        if self.y_domain is not None:
+            y = poly_map_domain(y, self.y_domain, self.y_window)
         invcoeff = self.invlex_coeff()
         return self.imhorner(x, y, invcoeff)
 
@@ -310,10 +314,6 @@ class OrthoPolynomialBase(PolynomialBase):
 
         if x.shape != y.shape:
             raise ValueError("Expected input arrays to have the same shape")
-        if self.x_domain is not None:
-            x = poly_map_domain(x, self.x_domain, self.x_window)
-        if self.y_domain is not None:
-            y = poly_map_domain(y, self.y_domain, self.y_window)
 
         return (x, y), format_info
 
@@ -380,13 +380,12 @@ class Chebyshev1D(PolynomialModel):
 
         x = inputs[0]
 
-        if self.domain is not None:
-            x = poly_map_domain(x, self.domain, self.window)
-
         return (x,), format_info
 
     @classmethod
     def evaluate(cls, x, *coeffs):
+        if cls.domain is not None:
+            x = poly_map_domain(x, cls.domain, cls.window)
         return cls.clenshaw(x, coeffs)
 
     @staticmethod
@@ -445,13 +444,12 @@ class Legendre1D(PolynomialModel):
 
         x = inputs[0]
 
-        if self.domain is not None:
-            x = poly_map_domain(x, self.domain, self.window)
-
         return (x,), format_info
 
     @classmethod
     def evaluate(cls, x, *coeffs):
+         if cls.domain is not None:
+            x = poly_map_domain(x, cls.domain, cls.window)
         return cls.clenshaw(x, coeffs)
 
     def fit_deriv(self, x, *params):
@@ -535,13 +533,12 @@ class Polynomial1D(PolynomialModel):
 
         x = inputs[0]
 
-        if self.domain is not None:
-            x = poly_map_domain(x, self.domain, self.window)
-
         return (x,), format_info
 
     @classmethod
     def evaluate(cls, x, *coeffs):
+        if cls.domain is not None:
+            x = poly_map_domain(x, cls.domain, cls.window)
         return cls.horner(x, coeffs)
 
     def fit_deriv(self, x, *params):
@@ -630,14 +627,14 @@ class Polynomial2D(PolynomialModel):
         if x.shape != y.shape:
             raise ValueError("Expected input arrays to have the same shape")
 
+        return (x, y), format_info
+
+    def evaluate(self, x, y, *coeffs):
         if self.x_domain is not None:
             x = poly_map_domain(x, self.x_domain, self.x_window)
         if self.y_domain is not None:
             y = poly_map_domain(y, self.y_domain, self.y_window)
-
-        return (x, y), format_info
-
-    def evaluate(self, x, y, *coeffs):
+            
         invcoeff = self.invlex_coeff(coeffs)
         result = self.multivariate_horner(x, y, invcoeff)
 
