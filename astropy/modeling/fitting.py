@@ -822,6 +822,55 @@ class LevMarLSQFitter(metaclass=_FitterMeta):
         else:
             return np.ravel(weights * (model(*args[2: -1]) - meas))
 
+    def fit_call(self, model,  fargs,obj_func, 
+                 maxiter=DEFAULT_MAXITER, acc=DEFAULT_ACC,
+                 epsilon=DEFAULT_EPS, estimate_jacobian=False):
+        from scipy import optimize
+        if model.fit_deriv is None or estimate_jacobian:
+            dfunc = None
+        else:
+            dfunc = self._wrap_deriv
+        init_values, _ = _model_to_fit_params(model)
+        fitparams, cov_x, dinfo, mess, ierr = optimize.leastsq(
+            obj_func, init_values, args=fargs, Dfun=dfunc,
+            col_deriv=model.col_fit_deriv, maxfev=maxiter, epsfcn=epsilon,
+            xtol=acc, full_output=True)
+        _fitter_to_model_params(model, fitparams)
+        self.fit_info.update(dinfo)
+        self.fit_info['cov_x'] = cov_x
+        self.fit_info['message'] = mess
+        self.fit_info['ierr'] = ierr
+        if ierr not in [1, 2, 3, 4]:
+            warnings.warn("The fit may be unsuccessful; check "
+                          "fit_info['message'] for more information.",
+                          AstropyUserWarning)
+        return model
+
+    def fit_msets(self, model,  farg,obj_func, 
+                  maxiter=DEFAULT_MAXITER, acc=DEFAULT_ACC,
+                  epsilon=DEFAULT_EPS, estimate_jacobian=False):
+
+        import multiprocessing
+        from multiprocessing import Pool
+        pars = []
+        for i in range(len(model)):
+            model_i = model.__class__()
+            model_i.parameters = model.param_sets[:, i]
+            model_i._model_set_axis = model._model_set_axis
+            if not model_i.model_set_axis:
+                larg = list(farg[2:])
+                for j in range(len(larg)):
+                    #need a rollaxis here
+                    larg[j] = larg[j][i]
+            fargs = (model_i, None) + tuple(larg)
+            #print('x,y', model_i.parameters, fargs)
+            m = self.fit_call(model_i, fargs, obj_func,
+                              maxiter=DEFAULT_MAXITER, acc=DEFAULT_ACC,
+                              epsilon=DEFAULT_EPS, estimate_jacobian=False)
+            pars.append(list(m.parameters))
+        model.parameters = np.array(pars).T.flatten()
+        return model
+    
     @fitter_unit_support
     def __call__(self, model, x, y, z=None, weights=None,
                  maxiter=DEFAULT_MAXITER, acc=DEFAULT_ACC,
@@ -871,34 +920,26 @@ class LevMarLSQFitter(metaclass=_FitterMeta):
 
         model_copy = _validate_model(model, self.supported_constraints)
         farg = (model_copy, weights, ) + _convert_input(x, y, z)
-
-        if model_copy.fit_deriv is None or estimate_jacobian:
-            dfunc = None
+        obj_func = self.objective_function
+        
+        if len(model_copy) > 1:
+            model_copy = self.fit_msets(model_copy, farg, obj_func,
+                                        maxiter=maxiter, acc=acc, epsilon=epsilon,
+                                        estimate_jacobian=estimate_jacobian)
+           
         else:
-            dfunc = self._wrap_deriv
-        init_values, _ = _model_to_fit_params(model_copy)
-        fitparams, cov_x, dinfo, mess, ierr = optimize.leastsq(
-            self.objective_function, init_values, args=farg, Dfun=dfunc,
-            col_deriv=model_copy.col_fit_deriv, maxfev=maxiter, epsfcn=epsilon,
-            xtol=acc, full_output=True)
-        _fitter_to_model_params(model_copy, fitparams)
-        self.fit_info.update(dinfo)
-        self.fit_info['cov_x'] = cov_x
-        self.fit_info['message'] = mess
-        self.fit_info['ierr'] = ierr
-        if ierr not in [1, 2, 3, 4]:
-            warnings.warn("The fit may be unsuccessful; check "
-                          "fit_info['message'] for more information.",
-                          AstropyUserWarning)
-
+            model_copy = self.fit_call(model_copy, farg, obj_func,
+                                  maxiter=DEFAULT_MAXITER, acc=DEFAULT_ACC,
+                                  epsilon=DEFAULT_EPS, estimate_jacobian=False)
         # now try to compute the true covariance matrix
+        '''
         if (len(y) > len(init_values)) and cov_x is not None:
             sum_sqrs = np.sum(self.objective_function(fitparams, *farg)**2)
             dof = len(y) - len(init_values)
             self.fit_info['param_cov'] = cov_x * sum_sqrs / dof
         else:
             self.fit_info['param_cov'] = None
-
+        '''
         return model_copy
 
     @staticmethod
@@ -1409,10 +1450,10 @@ def _validate_model(model, supported_constraints):
         warnings.warn('Model is linear in parameters; '
                       'consider using linear fitting methods.',
                       AstropyUserWarning)
-    elif len(model) != 1:
-        # for now only single data sets ca be fitted
-        raise ValueError("Non-linear fitters can only fit "
-                         "one data set at a time.")
+    #elif len(model) != 1:
+    #    # for now only single data sets ca be fitted
+    #    raise ValueError("Non-linear fitters can only fit "
+    #                     "one data set at a time.")
     _validate_constraints(supported_constraints, model)
 
     model_copy = model.copy()
