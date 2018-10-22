@@ -66,22 +66,19 @@ def _model_oper(oper, **kwargs):
     `_CompoundModelMeta._from_operator`.
     """
 
-    # Note: Originally this used functools.partial, but that won't work when
-    # used in the class definition of _CompoundModelMeta since
-    # _CompoundModelMeta has not been defined yet.
 
-    def _opfunc(left, right):
-        # Deprecation is for https://github.com/astropy/astropy/issues/8234
-        if not (isinstance(left, Model) and isinstance(right, Model)):
-            warnings.warn(
-                'Composition of model classes will be removed in 4.0'
-                '(but composition of model instances is not affected)',
-                AstropyDeprecationWarning)
+class _CompoundModel:
+    pass
 
-        # Perform an arithmetic operation on two models.
-        return _CompoundModelMeta._from_operator(oper, left, right, **kwargs)
 
-    return _opfunc
+class _CompoundModelMeta:
+    pass
+
+
+class ModelDefinitionError(TypeError):
+    """Used for incorrect models definitions"""
+
+
 
 
 class _ModelMeta(InheritDocstrings, abc.ABCMeta):
@@ -727,7 +724,6 @@ class Model(metaclass=_ModelMeta):
         self._initialize_parameters(args, kwargs)
         self._initialize_slices()
         self._initialize_unit_support()
-
 
     def _initialize_unit_support(self):
         """
@@ -1616,7 +1612,6 @@ class Model(metaclass=_ModelMeta):
 
         return outputs
 
-
     def prepare_outputs(self, format_info, *outputs, **kwargs):
         model_set_axis = kwargs.get('model_set_axis', None)
 
@@ -1904,11 +1899,9 @@ class Model(metaclass=_ModelMeta):
             param = getattr(self, name)
             if param._validator is not None:
                 param._validator(self, param.value)
- 
+
     def _initialize_parameter_value(self, param_name, value):
-        """
-        Mostly deals with consistency checks and determining unit issues.
-        """
+        """Mostly deals with consistency checks and determining unit issues."""
         if isinstance(value, Parameter):
             self.__dict__[param_name] = value
             return
@@ -2285,6 +2278,7 @@ BINARY_OPERATORS = {
 
 SPECIAL_OPERATORS = {}
 
+
 def _add_special_operator(sop_name, sop):
     SPECIAL_OPERATORS[sop_name] = sop
 
@@ -2292,7 +2286,7 @@ def _add_special_operator(sop_name, sop):
 
 """
 This module provides an alternate implementation of compound models that
-is lighter weight than the default implementation. 
+is lighter weight than the default implementation.
 
 Using this alternate version of compound models requires calling a function
 in core to make this one the default. If this is used, *is is higly recommended
@@ -2322,6 +2316,7 @@ Things that will never be supported:
 
 - Compound models of model classes (as opposed to instances)
 """
+
 
 class CompoundModel(Model):
     '''
@@ -2475,7 +2470,6 @@ class CompoundModel(Model):
                 newnames.append(item)
         return tuple(newnames)
 
-
     def both_inverses_exist(self):
         '''
         if both members of this compound model have inverses return True
@@ -2574,7 +2568,6 @@ class CompoundModel(Model):
         if self._param_names is None:
             self.map_parameters()
         return self._param_names
-    
 
     def _make_leaflist(self):
         tdict = {}
@@ -2585,7 +2578,7 @@ class CompoundModel(Model):
 
     def __getattr__(self, name):
         """
-        If someone accesses an attribute not already defined, map the 
+        If someone accesses an attribute not already defined, map the
         parameters, and then see if the requested attribute is one of
         the parameters
         """
@@ -2638,7 +2631,7 @@ class CompoundModel(Model):
     @n_inputs.setter
     def n_inputs(self, value):
         self._n_inputs = value
-    
+
     @property
     def n_outputs(self):
         return self._n_outputs
@@ -2650,7 +2643,7 @@ class CompoundModel(Model):
     @property
     def eqcons(self):
         return self._eqcons
-    
+
     @eqcons.setter
     def eqcons(self, value):
         self._eqcons = value
@@ -2658,7 +2651,7 @@ class CompoundModel(Model):
     @property
     def ineqcons(self):
         return self._eqcons
-    
+
     @ineqcons.setter
     def ineqcons(self, value):
         self._eqcons = value
@@ -2796,7 +2789,7 @@ class CompoundModel(Model):
                 self.map_parameters()
             self._fittable = all(m.fittable for m in self._leaflist)
         return self._fittable
-   
+
     @property
     def parameters(self):
         """
@@ -3294,6 +3287,7 @@ try:
 except ImportError:
     pass
 
+
 def custom_model(*args, fit_deriv=None, **kwargs):
     """
     Create a model from a user defined function. The inputs and parameters of
@@ -3777,6 +3771,7 @@ def remove_axis_from_shape(shape, axis):
         return ()
     return shape
 
+
 def remove_axes_from_shape(shape, axis):
     """
     Given a shape tuple as the first input, construct a new one by  removing
@@ -3792,6 +3787,7 @@ def remove_axes_from_shape(shape, axis):
         axis = len(shape)-1
     shape = shape[axis+1:]
     return shape
+
 
 def generic_call(self, *inputs, **kwargs):
     inputs, format_info = self.prepare_inputs(*inputs, **kwargs)
@@ -3872,6 +3868,7 @@ def generic_call(self, *inputs, **kwargs):
         return outputs[0]
     else:
         return outputs
+
 
 def ismodel(obj):
     """
