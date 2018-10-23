@@ -55,6 +55,8 @@ class _CompoundModelMeta:
 class ModelDefinitionError(TypeError):
     """Used for incorrect models definitions"""
 
+__all__ = ['Model', 'FittableModel', 'Fittable1DModel', 'Fittable2DModel',
+           'CompoundModel', 'custom_model', 'ModelDefinitionError']
 
 def _model_oper(oper, **kwargs):
     """
