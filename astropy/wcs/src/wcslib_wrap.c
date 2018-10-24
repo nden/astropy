@@ -1990,6 +1990,31 @@ PyWcsprm_get_axis_types(
   return get_int_array("axis_types", self->x.types, 1, &naxis, (PyObject*)self);
 }
 
+static PyObject*
+PyWcsprm_get_bepoch(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  return get_double("bepoch", self->x.bepoch);
+}
+
+static int
+PyWcsprm_set_bepoch(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  note_change(self);
+
+  if (value == NULL) {
+    self->x.bepoch = (double)NPY_NAN;
+    return 0;
+  }
+
+  return set_double("bepoch", value, &self->x.bepoch);
+}
+
+
 /*@null@*/ static PyObject*
 PyWcsprm_get_cd(
     PyWcsprm* self,
@@ -2473,6 +2498,57 @@ PyWcsprm_set_dateavg(
 }
 
 /*@null@*/ static PyObject*
+PyWcsprm_get_datebeg(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  if (is_null(self->x.datebeg)) {
+    return NULL;
+  }
+
+  return get_string("datebeg", self->x.datebeg);
+}
+
+static int
+PyWcsprm_set_datebeg(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  if (is_null(self->x.datebeg)) {
+    return -1;
+  }
+
+  return set_string("datebeg", value, self->x.datebeg, 72);
+}
+
+/*@null@*/ static PyObject*
+PyWcsprm_get_dateend(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  if (is_null(self->x.dateend)) {
+    return NULL;
+  }
+
+  return get_string("dateend", self->x.dateend);
+}
+
+static int
+PyWcsprm_set_dateend(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  if (is_null(self->x.dateend)) {
+    return -1;
+  }
+
+  return set_string("dateend", value, self->x.dateend, 72);
+}
+
+
+/*@null@*/ static PyObject*
 PyWcsprm_get_dateobs(
     PyWcsprm* self,
     /*@unused@*/ void* closure) {
@@ -2495,6 +2571,31 @@ PyWcsprm_set_dateobs(
   }
 
   return set_string("dateobs", value, self->x.dateobs, 72);
+}
+
+/*@null@*/ static PyObject*
+PyWcsprm_get_dateref(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  if (is_null(self->x.dateref)) {
+    return NULL;
+  }
+
+  return get_string("dateref", self->x.dateref);
+}
+
+static int
+PyWcsprm_set_dateref(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  if (is_null(self->x.dateref)) {
+    return -1;
+  }
+
+  return set_string("dateref", value, self->x.dateref, 72);
 }
 
 static PyObject*
@@ -2540,6 +2641,31 @@ PyWcsprm_get_imgpix_matrix(
   return get_double_array("imgpix_matrix", self->x.lin.imgpix, 2, dims,
                           (PyObject*)self);
 }
+
+static PyObject*
+PyWcsprm_get_jepoch(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  return get_double("jepoch", self->x.jepoch);
+}
+
+static int
+PyWcsprm_set_jepoch(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  note_change(self);
+
+  if (value == NULL) {
+    self->x.jepoch = (double)NPY_NAN;
+    return 0;
+  }
+
+  return set_double("jepoch", value, &self->x.jepoch);
+}
+
 
 static PyObject*
 PyWcsprm_get_lat(
@@ -2668,6 +2794,50 @@ PyWcsprm_set_mjdavg(
 }
 
 static PyObject*
+PyWcsprm_get_mjdbeg(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  return get_double("mjdbeg", self->x.mjdbeg);
+}
+
+static int
+PyWcsprm_set_mjdbeg(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  if (value == NULL) {
+    self->x.mjdbeg = (double)NPY_NAN;
+    return 0;
+  }
+
+  return set_double("mjdbeg", value, &self->x.mjdbeg);
+}
+
+static PyObject*
+PyWcsprm_get_mjdend(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  return get_double("mjdend", self->x.mjdend);
+}
+
+static int
+PyWcsprm_set_mjdend(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  if (value == NULL) {
+    self->x.mjdend = (double)NPY_NAN;
+    return 0;
+  }
+
+  return set_double("mjdend", value, &self->x.mjdend);
+}
+
+static PyObject*
 PyWcsprm_get_mjdobs(
     PyWcsprm* self,
     /*@unused@*/ void* closure) {
@@ -2689,6 +2859,30 @@ PyWcsprm_set_mjdobs(
   }
 
   return set_double("mjdobs", value, &self->x.mjdobs);
+}
+
+static PyObject*
+PyWcsprm_get_mjdref(
+    PyWcsprm* self,
+    /*@unused@*/ void* closure) {
+
+  return get_double("mjdref", self->x.mjdref);
+}
+
+static int
+PyWcsprm_set_mjdref(
+    PyWcsprm* self,
+    PyObject* value,
+    /*@unused@*/ void* closure) {
+
+  note_change(self);
+
+  if (value == NULL) {
+    self->x.mjdref = (double)NPY_NAN;
+    return 0;
+  }
+
+  return set_double("mjdref", value, &self->x.mjdref);
 }
 
 /*@null@*/ static PyObject*
@@ -3224,6 +3418,7 @@ PyWcsprm_set_zsource(
 static PyGetSetDef PyWcsprm_getset[] = {
   {"alt", (getter)PyWcsprm_get_alt, (setter)PyWcsprm_set_alt, (char *)doc_alt},
   {"axis_types", (getter)PyWcsprm_get_axis_types, NULL, (char *)doc_axis_types},
+  {"bepoch", (getter)PyWcsprm_get_bepoch, (setter)PyWcsprm_set_bepoch, (char *)doc_bepoch},
   {"cd", (getter)PyWcsprm_get_cd, (setter)PyWcsprm_set_cd, (char *)doc_cd},
   {"cdelt", (getter)PyWcsprm_get_cdelt, (setter)PyWcsprm_set_cdelt, (char *)doc_cdelt},
   {"cel_offset", (getter)PyWcsprm_get_cel_offset, (setter)PyWcsprm_set_cel_offset, (char *)doc_cel_offset},
@@ -3239,9 +3434,13 @@ static PyGetSetDef PyWcsprm_getset[] = {
   {"cubeface", (getter)PyWcsprm_get_cubeface, (setter)PyWcsprm_set_cubeface, (char *)doc_cubeface},
   {"cunit", (getter)PyWcsprm_get_cunit, (setter)PyWcsprm_set_cunit, (char *)doc_cunit},
   {"dateavg", (getter)PyWcsprm_get_dateavg, (setter)PyWcsprm_set_dateavg, (char *)doc_dateavg},
+  {"datebeg", (getter)PyWcsprm_get_datebeg, (setter)PyWcsprm_set_datebeg, (char *)doc_datebeg},
+  {"dateend", (getter)PyWcsprm_get_dateend, (setter)PyWcsprm_set_dateend, (char *)doc_dateend},
   {"dateobs", (getter)PyWcsprm_get_dateobs, (setter)PyWcsprm_set_dateobs, (char *)doc_dateobs},
+  {"dateref", (getter)PyWcsprm_get_dateref, (setter)PyWcsprm_set_dateref, (char *)doc_dateref},
   {"equinox", (getter)PyWcsprm_get_equinox, (setter)PyWcsprm_set_equinox, (char *)doc_equinox},
   {"imgpix_matrix", (getter)PyWcsprm_get_imgpix_matrix, NULL, (char *)doc_imgpix_matrix},
+  {"kepoch", (getter)PyWcsprm_get_jepoch, (setter)PyWcsprm_set_jepoch, (char *)doc_jepoch},
   {"lat", (getter)PyWcsprm_get_lat, NULL, (char *)doc_lat},
   {"latpole", (getter)PyWcsprm_get_latpole, (setter)PyWcsprm_set_latpole, (char *)doc_latpole},
   {"lattyp", (getter)PyWcsprm_get_lattyp, NULL, (char *)doc_lattyp},
@@ -3249,7 +3448,10 @@ static PyGetSetDef PyWcsprm_getset[] = {
   {"lngtyp", (getter)PyWcsprm_get_lngtyp, NULL, (char *)doc_lngtyp},
   {"lonpole", (getter)PyWcsprm_get_lonpole, (setter)PyWcsprm_set_lonpole, (char *)doc_lonpole},
   {"mjdavg", (getter)PyWcsprm_get_mjdavg, (setter)PyWcsprm_set_mjdavg, (char *)doc_mjdavg},
+  {"mjdbeg", (getter)PyWcsprm_get_mjdbeg, (setter)PyWcsprm_set_mjdbeg, (char *)doc_mjdbeg},
+  {"mjdend", (getter)PyWcsprm_get_mjdend, (setter)PyWcsprm_set_mjdend, (char *)doc_mjdend},
   {"mjdobs", (getter)PyWcsprm_get_mjdobs, (setter)PyWcsprm_set_mjdobs, (char *)doc_mjdobs},
+  {"mjdref", (getter)PyWcsprm_get_mjdref, (setter)PyWcsprm_set_mjdref, (char *)doc_mjdref},
   {"name", (getter)PyWcsprm_get_name, (setter)PyWcsprm_set_name, (char *)doc_name},
   {"naxis", (getter)PyWcsprm_get_naxis, NULL, (char *)doc_naxis},
   {"obsgeo", (getter)PyWcsprm_get_obsgeo, (setter)PyWcsprm_set_obsgeo, (char *)doc_obsgeo},
