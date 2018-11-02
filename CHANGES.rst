@@ -1539,6 +1539,7 @@ astropy.io.misc
   written as byte strings. [#7024, #8017]
 
 - Fixed a bug with serializing the bounding_box of models initialized
+- Fixed a bug with serializing the bounding_box of models initialized 
   with ``Quantities`` . [#8052]
 
 astropy.io.fits
@@ -1558,6 +1559,9 @@ astropy.modeling
   ``Quantities``. [#8052]
 
 - Fix ``Moffat1D`` and ``Moffat2D`` derivatives. [#8108]
+
+- Fixed an issue with validating a ``bounding_box`` whose items are 
+  ``Quantities``. [#8052]
 
 astropy.nddata
 ^^^^^^^^^^^^^^
