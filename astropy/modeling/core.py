@@ -2477,9 +2477,11 @@ class _CompoundModelMeta(_ModelMeta):
             else:
                 raise ValueError('Model sets must have the same number of '
                                  'components.')
-
+    
             return instance
 
+        else:
+            warnings.warn("222DONT COMBINE CLASSES", AstropyDeprecationWarning)
         # Otherwise return the new uninstantiated class itself
         return new_cls
 
