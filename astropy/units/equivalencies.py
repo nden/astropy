@@ -178,7 +178,6 @@ def spectral_density(wav, factor=None):
             raise ValueError(
                 'If `wav` is specified as a unit, `factor` should be set')
         wav = factor * wav   # Convert to Quantity
-    print('factor', factor, type(factor))
     c_Aps = _si.c.to_value(si.AA / si.s)  # Angstrom/s
     h_cgs = _si.h.cgs.value  # erg * s
     hc = c_Aps * h_cgs
