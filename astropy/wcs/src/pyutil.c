@@ -337,7 +337,7 @@ wcshdr_err_to_python_exc(int status) {
   Property helpers
  ***************************************************************************/
 
-#define SHAPE_STR_LEN 128
+#define SHAPE_STR_LEN 2048
 
 /* Helper function to display the desired shape of an array as a
    string, eg. 2x2 */

@@ -398,7 +398,8 @@ def test_fix():
         'datfix': 'No change',
         'spcfix': 'No change',
         'unitfix': 'No change',
-        'celfix': 'No change'}
+        'celfix': 'No change',
+        'obsfix': 'No change',}
     version = wcs._wcs.__version__
     if version[0] <= "5":
         del fix_ref['obsfix']
