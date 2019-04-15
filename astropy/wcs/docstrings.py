@@ -2406,7 +2406,7 @@ astropy.wcs.Wcsprm.dateend
 """
 
 dateref = """
-``string`` Date of a reference epoch relative to which 
+``string`` Date of a reference epoch relative to which
 other time measurements refer.
 
 See also
@@ -2415,8 +2415,8 @@ astropy.wcs.Wcsprm.dateref
 """
 
 timesys = """
-``string`` Time scale (UTC, TAI, etc.) in which all other time-related 
-auxiliary header values are recorded. Also defines the time scale for 
+``string`` Time scale (UTC, TAI, etc.) in which all other time-related
+auxiliary header values are recorded. Also defines the time scale for
 an image axis with CTYPEia set to 'TIME'.
 
 See also
@@ -2441,8 +2441,8 @@ astropy.wcs.Wcsprm.trefdir
 """
 
 timeunit = """
-``string`` Time units in which the following header values are expressed: 
-``TSTART``, ``TSTOP``, ``TIMEOFFS``, ``TIMSYER``, ``TIMRDER``, ``TIMEDEL``. 
+``string`` Time units in which the following header values are expressed:
+``TSTART``, ``TSTOP``, ``TIMEOFFS``, ``TIMSYER``, ``TIMRDER``, ``TIMEDEL``.
 
 It also provides the default value for ``CUNITia`` for time axes.
 
