@@ -2483,6 +2483,14 @@ See also
 astropy.wcs.Wcsprm.tstart
 """
 
+timeoffs = """
+``double`` Time offset, which may be used, for example, to provide a uniform clock correction
+           for times referenced to DATEREF.
+See also
+--------
+astropy.wcs.Wcsprm.timeoffs
+"""
+
 timsyer = """
 ``double`` the absolute error of the time values, in units of TIMEUNIT.
 
@@ -2529,4 +2537,16 @@ xposure = """
 See also
 --------
 astropy.wcs.Wcsprm.timeunit
+"""
+
+czphs = """
+``double array[naxis]`` The time at the zero point of a phase axis, ``CSPHSia``.
+
+An undefined value is represented by NaN.
+"""
+
+cperi = """
+``double array[naxis]`` period of a phase axis, CPERIia.
+
+An undefined value is represented by NaN.
 """
