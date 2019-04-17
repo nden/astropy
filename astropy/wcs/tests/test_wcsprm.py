@@ -597,8 +597,8 @@ def test_naxis_set():
 def test_obsgeo():
     w = _wcs.Wcsprm()
     assert np.all(np.isnan(w.obsgeo))
-    w.obsgeo = [1, 2, 3]
-    assert_array_equal(w.obsgeo, [1, 2, 3])
+    w.obsgeo = [1, 2, 3, 4, 5, 6]
+    assert_array_equal(w.obsgeo, [1, 2, 3, 4, 5, 6])
     del w.obsgeo
     assert np.all(np.isnan(w.obsgeo))
 
