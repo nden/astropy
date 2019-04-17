@@ -3340,7 +3340,7 @@ PyWcsprm_get_obsgeo(
     PyWcsprm* self,
     /*@unused@*/ void* closure) {
 
-  Py_ssize_t size = 3;
+  Py_ssize_t size = 6;
 
   if (is_null(self->x.obsgeo)) {
     return NULL;
@@ -3355,7 +3355,7 @@ PyWcsprm_set_obsgeo(
     PyObject* value,
     /*@unused@*/ void* closure) {
 
-  npy_intp size = 3;
+  npy_intp size = 6;
 
   if (is_null(self->x.obsgeo)) {
     return -1;
