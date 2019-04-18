@@ -5,6 +5,7 @@ from asdf import tagged, yamlutil
 from asdf.tests.helpers import assert_tree_match
 
 from astropy import modeling
+from astropy.modeling.core import CompoundModel, Model
 from astropy.modeling.models import Identity, Mapping
 from .basic import TransformType, ConstantType
 
@@ -46,12 +47,12 @@ class CompoundType(TransformType):
         oper = _tag_to_method_mapping[tag]
         left = yamlutil.tagged_tree_to_custom_tree(
             node['forward'][0], ctx)
-        if not (isinstance(left, modeling.Model)):
+        if not (isinstance(left, Model)):
             raise TypeError("Unknown model type '{0}'".format(
                 node['forward'][0]._tag))
         right = yamlutil.tagged_tree_to_custom_tree(
             node['forward'][1], ctx)
-        if not (isinstance(right, modeling.Model)):
+        if not (isinstance(right, Model)):
             raise TypeError("Unknown model type '{0}'".format(
                 node['forward'][1]._tag))
         model = getattr(left, oper)(right)
@@ -63,13 +64,13 @@ class CompoundType(TransformType):
     @classmethod
     def _to_tree_from_model_tree(cls, tree, ctx):
 
-        if not isinstance(tree.left, modeling.CompoundModel):
+        if not isinstance(tree.left, CompoundModel):
             left = yamlutil.custom_tree_to_tagged_tree(
                 tree.left, ctx)
         else:
             left = cls._to_tree_from_model_tree(tree.left, ctx)
 
-        if not isinstance(tree.right, modeling.CompoundModel):
+        if not isinstance(tree.right, CompoundModel):
             right = yamlutil.custom_tree_to_tagged_tree(
                 tree.right, ctx)
         else:
