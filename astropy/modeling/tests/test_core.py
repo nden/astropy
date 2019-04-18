@@ -5,9 +5,9 @@ import numpy as np
 from inspect import signature
 from numpy.testing import assert_allclose
 
-from astropy.modeling.core import Model, custom_model
-from astropy.modeling.parameters import Parameter
-from astropy.modeling import models
+from ..core import Model, custom_model
+from ..parameters import Parameter
+from .. import models
 
 
 class NonFittableModel(Model):
@@ -376,7 +376,7 @@ def test_compound_deepcopy():
     model = (models.Gaussian1D(10, 2,3) | models.Shift(2)) & models.Rotation2D(21.3)
     new_model = model.deepcopy()
     assert id(model) != id(new_model)
-    assert id(model._submodels) != id(new_model._submodels)
-    assert id(model._submodels[0]) != id(new_model._submodels[0])
-    assert id(model._submodels[1]) != id(new_model._submodels[1])
-    assert id(model._submodels[2]) != id(new_model._submodels[2])
+    assert id(model._leaflist) != id(new_model._leaflist)
+    assert id(model[0]) != id(new_model[0])
+    assert id(model[1]) != id(new_model[1])
+    assert id(model[2]) != id(new_model[2])

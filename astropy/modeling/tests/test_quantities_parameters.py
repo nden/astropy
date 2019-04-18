@@ -8,14 +8,14 @@ Tests that relate to using quantities/units on parameters of models.
 import numpy as np
 import pytest
 
-from astropy.modeling.core import Model, Fittable1DModel, InputParameterError
-from astropy.modeling.parameters import Parameter, ParameterDefinitionError
-from astropy.modeling.models import (Gaussian1D, Pix2Sky_TAN, RotateNative2Celestial,
+from ..core import Model, Fittable1DModel, InputParameterError
+from ..parameters import Parameter, ParameterDefinitionError
+from ..models import (Gaussian1D, Pix2Sky_TAN, RotateNative2Celestial,
                       Rotation2D)
-from astropy import units as u
-from astropy.units import UnitsError
-from astropy.tests.helper import assert_quantity_allclose
-from astropy import coordinates as coord
+from ... import units as u
+from ...units import UnitsError
+from ...tests.helper import assert_quantity_allclose
+from ... import coordinates as coord
 
 
 class BaseTestModel(Fittable1DModel):
@@ -143,10 +143,11 @@ def test_parameter_set_value():
     # If we try setting it to a Quantity, we raise an error
     with pytest.raises(TypeError) as exc:
         g.amplitude.value = 3 * u.Jy
-    assert exc.value.args[0] == ("The .value property on parameters should be set to "
-                                 "unitless values, not Quantity objects. To set a "
-                                 "parameter to a quantity simply set the parameter "
-                                 "directly without using .value")
+    assert exc.value.args[0] == \
+        ("The .value property on parameters should be set"
+         " to unitless values, not Quantity objects. To set"
+         "a parameter to a quantity simply set the "
+         "parameter directly without using .value")
 
 
 def test_parameter_quantity_property():

@@ -5,10 +5,10 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose
 
-from astropy.wcs import wcs
-from astropy.modeling import models
-from astropy import units as u
-from astropy.tests.helper import assert_quantity_allclose
+from ...wcs import wcs
+from .. import models
+from ... import units as u
+from ...tests.helper import assert_quantity_allclose
 
 
 @pytest.mark.parametrize(('inp'), [(0, 0), (4000, -20.56), (-2001.5, 45.9),
@@ -95,8 +95,8 @@ def test_attributes():
     assert_allclose(n2c.lon_pole.value, np.pi)
     assert_allclose(n2c.lon_pole._raw_value, np.pi)
     assert(n2c.lon.unit is u.Unit("arcsec"))
-    assert(n2c._param_metrics['lon']['raw_unit'] is u.Unit("rad"))
+    assert(n2c.lon.internal_unit is u.Unit("rad"))
     assert(n2c.lat.unit is u.Unit("deg"))
-    assert(n2c._param_metrics['lat']['raw_unit'] is u.Unit("rad"))
+    assert(n2c.lat.internal_unit is u.Unit("rad"))
     assert(n2c.lon_pole.unit is u.Unit("rad"))
-    assert(n2c._param_metrics['lon_pole']['raw_unit'] is u.Unit("rad"))
+    assert(n2c.lon_pole.internal_unit is u.Unit("rad"))

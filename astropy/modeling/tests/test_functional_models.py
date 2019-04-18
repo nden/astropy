@@ -5,11 +5,11 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 
-from astropy.modeling import models, InputParameterError
-from astropy.coordinates import Angle
-from astropy.modeling import fitting
-from astropy.tests.helper import catch_warnings
-from astropy.utils.exceptions import AstropyDeprecationWarning
+from .. import models, InputParameterError
+from ...coordinates import Angle
+from .. import fitting
+from ...tests.helper import catch_warnings
+from ...utils.exceptions import AstropyDeprecationWarning
 
 try:
     from scipy import optimize  # pylint: disable=W0611
@@ -25,8 +25,8 @@ def test_sigma_constant():
     it manually in astropy.modeling to avoid importing from
     astropy.stats.
     """
-    from astropy.stats.funcs import gaussian_sigma_to_fwhm
-    from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
+    from ...stats.funcs import gaussian_sigma_to_fwhm
+    from ..functional_models import GAUSSIAN_SIGMA_TO_FWHM
     assert gaussian_sigma_to_fwhm == GAUSSIAN_SIGMA_TO_FWHM
 
 
@@ -252,23 +252,3 @@ def test_Voigt1D():
     fitter = fitting.LevMarLSQFitter()
     voi_fit = fitter(voi_init, xarr, yarr)
     assert_allclose(voi_fit.param_sets, voi.param_sets)
-
-
-@pytest.mark.skipif("not HAS_SCIPY")
-def test_compound_models_with_class_variables():
-    models_2d = [models.AiryDisk2D, models.Sersic2D]
-    models_1d = [models.Sersic1D]
-
-    for model_2d in models_2d:
-        class CompoundModel2D(models.Const2D + model_2d):
-            pass
-        x, y = np.mgrid[:10, :10]
-        f = CompoundModel2D()(x, y)
-        assert f.shape == (10, 10)
-
-    for model_1d in models_1d:
-        class CompoundModel1D(models.Const1D + model_1d):
-            pass
-        x = np.arange(10)
-        f = CompoundModel1D()(x)
-        assert f.shape == (10,)

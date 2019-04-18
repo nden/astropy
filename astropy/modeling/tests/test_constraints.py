@@ -7,10 +7,10 @@ import numpy as np
 from numpy.testing import assert_allclose
 from numpy.random import RandomState
 
-from astropy.modeling.core import Fittable1DModel
-from astropy.modeling.parameters import Parameter
-from astropy.modeling import models
-from astropy.modeling import fitting
+from ..core import Fittable1DModel
+from ..parameters import Parameter
+from .. import models
+from .. import fitting
 
 from .utils import ignore_non_integer_warning
 
@@ -489,7 +489,7 @@ def test_2d_model():
     z = gauss2d(x, y)
     w = np.ones(x.size)
     w.shape = x.shape
-    from astropy.utils import NumpyRNGContext
+    from ...utils import NumpyRNGContext
 
     with NumpyRNGContext(1234567890):
 
@@ -521,16 +521,3 @@ def test_2d_model():
         assert_allclose(m.parameters, p2.parameters, rtol=0.05)
         m = fitter(p2, x, y, z + 2 * n, weights=None)
         assert_allclose(m.parameters, p2.parameters, rtol=0.05)
-
-
-def test_prior_posterior():
-    model = models.Gaussian1D()
-    model.amplitude.prior = models.Polynomial1D(1, c0=1, c1=2)
-    assert isinstance(model.amplitude.prior, models.Polynomial1D)
-    assert model.amplitude.prior.c0 == 1
-    assert model.amplitude.prior.c1 == 2
-    assert isinstance(model._constraints['prior']['amplitude'], models.Polynomial1D)
-
-    model.amplitude.prior = None
-    assert model.amplitude.prior is None
-    assert model._constraints['prior']['amplitude'] is None

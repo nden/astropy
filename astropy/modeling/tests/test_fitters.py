@@ -12,16 +12,16 @@ from numpy.testing import assert_allclose, assert_almost_equal
 from unittest import mock
 
 from . import irafutil
-from astropy.modeling import models
-from astropy.modeling.core import Fittable2DModel, Parameter
-from astropy.modeling.fitting import *
-from astropy.utils import NumpyRNGContext
-from astropy.utils.data import get_pkg_data_filename
+from .. import models
+from ..core import Fittable2DModel, Parameter
+from ..fitting import *
+from ...utils import NumpyRNGContext
+from ...utils.data import get_pkg_data_filename
 from .utils import ignore_non_integer_warning
-from astropy.stats import sigma_clip
+from ...stats import sigma_clip
 
-from astropy.utils.exceptions import AstropyUserWarning
-from astropy.modeling.fitting import populate_entry_points
+from ...utils.exceptions import AstropyUserWarning
+from ..fitting import populate_entry_points
 import warnings
 
 try:
@@ -181,6 +181,7 @@ class TestJointFitter:
         coeff, _ = optimize.leastsq(errfunc, p,
                                     args=(self.x, self.ny1, self.x, self.ny2))
         assert_allclose(coeff, self.jf.fitparams, rtol=10 ** (-2))
+
 
 class TestLinearLSQFitter:
     def test_compound_model_raises_error(self):
@@ -738,7 +739,6 @@ def test_2d_set_axis_2_fitting_with_outlier_removal():
     z[3,3:5,0] = 100.   # outliers
 
     poly_set, filt_z = fitter(poly_set, x, y, z)
-
     assert_allclose(poly_set.c0_0, [[[0., 1.]]], atol=1e-14)
     assert_allclose(poly_set.c1_0, [[[1., -0.1]]], atol=1e-14)
     assert_allclose(poly_set.c0_1, [[[1., 0.2]]], atol=1e-14)

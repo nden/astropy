@@ -1,4 +1,4 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
+
 
 """
 This module defines base classes for all models.  The base class of all
@@ -24,64 +24,73 @@ import types
 import warnings
 
 from collections import defaultdict, OrderedDict
-from contextlib import suppress
 from inspect import signature
-from itertools import chain, islice
-from functools import partial
+from itertools import chain
 
 import numpy as np
 
-from astropy.utils import indent, metadata
-from astropy.table import Table
-from astropy.units import Quantity, UnitsError, dimensionless_unscaled
-from astropy.units.utils import quantity_asanyarray
-from astropy.utils import (sharedmethod, find_current_module,
-                     InheritDocstrings, OrderedDescriptorContainer,
+from ..utils import indent, metadata
+from ..table import Table
+from ..units import Quantity, UnitsError, dimensionless_unscaled
+from ..units.utils import quantity_asanyarray
+from ..utils import (sharedmethod, find_current_module,
+                     InheritDocstrings,
                      check_broadcast, IncompatibleShapeError, isiterable)
-from astropy.utils.codegen import make_function_with_signature
-from astropy.utils.exceptions import AstropyDeprecationWarning
-from .utils import (combine_labels, make_binary_operator_eval,
+from ..utils.misc import get_parameters
+from ..utils.codegen import make_function_with_signature
+from ..utils.exceptions import AstropyDeprecationWarning
+from .utils import (make_binary_operator_eval,
                     ExpressionTree, AliasDict, get_inputs_and_params,
                     _BoundingBox, _combine_equivalency_dict)
-from astropy.nddata.utils import add_array, extract_array
+from ..nddata.utils import add_array, extract_array
+#from . import compound
+from .parameters import (Parameter, InputParameterError,
+                         param_repr_oneline, _tofloat)
 
-from .parameters import Parameter, InputParameterError, param_repr_oneline
+from collections import deque
 
+
+from ..utils import indent
+from .utils import combine_labels, _BoundingBox
 
 __all__ = ['Model', 'FittableModel', 'Fittable1DModel', 'Fittable2DModel',
-           'custom_model', 'ModelDefinitionError']
+           'CompoundModel', 'custom_model', 'ModelDefinitionError']
+
+def _model_oper(oper, **kwargs):
+    """
+    This is an alternate version of compound models intended to use
+    much less memory than the default.
+    """
+    return lambda left, right: CompoundModel(oper, left, right, **kwargs)
+
+
+class _CompoundModel:
+    pass
+
+
+class _CompoundModelMeta:
+    pass
 
 
 class ModelDefinitionError(TypeError):
     """Used for incorrect models definitions"""
 
-
-def _model_oper(oper, **kwargs):
-    """
-    Returns a function that evaluates a given Python arithmetic operator
-    between two models.  The operator should be given as a string, like ``'+'``
-    or ``'**'``.
-
-    Any additional keyword arguments passed in are passed to
-    `_CompoundModelMeta._from_operator`.
-    """
-
-    # Note: Originally this used functools.partial, but that won't work when
-    # used in the class definition of _CompoundModelMeta since
-    # _CompoundModelMeta has not been defined yet.
-
-    # Perform an arithmetic operation on two models.
-    return lambda left, right: _CompoundModelMeta._from_operator(oper, left,
-                                                                 right, **kwargs)
+__all__ = ['Model', 'FittableModel', 'Fittable1DModel', 'Fittable2DModel',
+           'custom_model', 'ModelDefinitionError']
 
 
-class _ModelMeta(OrderedDescriptorContainer, InheritDocstrings, abc.ABCMeta):
+class _ModelMeta(InheritDocstrings, abc.ABCMeta):
     """
     Metaclass for Model.
 
     Currently just handles auto-generating the param_names list based on
     Parameter descriptors declared at the class-level of Model subclasses.
     """
+    @classmethod
+    def __prepare__(mcls, name, bases):
+        return OrderedDict()
+
+    registry = set()
 
     _is_dynamic = False
     """
@@ -98,32 +107,59 @@ class _ModelMeta(OrderedDescriptorContainer, InheritDocstrings, abc.ABCMeta):
 
     # Default empty dict for _parameters_, which will be empty on model
     # classes that don't have any Parameters
-    _parameters_ = OrderedDict()
 
     def __new__(mcls, name, bases, members):
         # See the docstring for _is_dynamic above
         if '_is_dynamic' not in members:
             members['_is_dynamic'] = mcls._is_dynamic
+        get_parameters(members)
+        opermethods = [
+            ('__add__', _model_oper('+')),
+            ('__sub__', _model_oper('-')),
+            ('__mul__', _model_oper('*')),
+            ('__truediv__', _model_oper('/')),
+            ('__pow__', _model_oper('**')),
+            ('__or__', _model_oper('|')),
+            ('__and__',_model_oper('&')),
+            ###('__mod__', _model_oper('%'))
+        ]
+        for opermethod, opercall in opermethods:
+            members[opermethod] = opercall
+        cls = super().__new__(mcls, name, bases, members)
 
-        return super().__new__(mcls, name, bases, members)
+        param_names = list(members['_parameters_'])
 
-    def __init__(cls, name, bases, members):
-        # Make sure OrderedDescriptorContainer gets to run before doing
-        # anything else
-        super().__init__(name, bases, members)
-
+        # Need to walk each base MRO to collect all parameter names
+        for base in bases:
+            for tbase in base.__mro__:
+                if issubclass(tbase, Model):
+                    # Preserve order of definitions
+                    param_names = list(tbase._parameters_) + param_names
         if cls._parameters_:
             if hasattr(cls, '_param_names'):
                 # Slight kludge to support compound models, where
                 # cls.param_names is a property; could be improved with a
                 # little refactoring but fine for now
-                cls._param_names = tuple(cls._parameters_)
+                cls._param_names = tuple(param_names)
             else:
-                cls.param_names = tuple(cls._parameters_)
+                cls.param_names = tuple(param_names)
 
-        cls._create_inverse_property(members)
+        return cls
+
+    def __init__(cls, name, bases, members):
+        super(_ModelMeta, cls).__init__(name, bases, members)
+        if cls.__name__ != "CompoundModel":
+            cls._create_inverse_property(members)
         cls._create_bounding_box_property(members)
-        cls._handle_special_methods(members)
+        pdict = OrderedDict()
+        for base in bases:
+            for tbase in base.__mro__:
+                if issubclass(tbase, Model):
+                    for parname, val in cls._parameter_vals_.items():
+                        pdict[parname] = val
+        cls._handle_special_methods(members, pdict)
+        if not inspect.isabstract(cls) and not name.startswith('_'):
+            cls.registry.add(cls)
 
     def __repr__(cls):
         """
@@ -337,7 +373,7 @@ class _ModelMeta(OrderedDescriptorContainer, InheritDocstrings, abc.ABCMeta):
         return type(str('_{0}BoundingBox'.format(cls.name)), (_BoundingBox,),
                     {'__call__': __call__})
 
-    def _handle_special_methods(cls, members):
+    def _handle_special_methods(cls, members, pdict):
 
         # Handle init creation from inputs
         def update_wrapper(wrapper, cls):
@@ -381,29 +417,34 @@ class _ModelMeta(OrderedDescriptorContainer, InheritDocstrings, abc.ABCMeta):
                                      ('fill_value', np.nan),
                                      ('equivalencies', None)])
 
-            # The following makes it look like __call__ was defined in the class
+            # The following makes it look like __call__
+            # was defined in the class
             update_wrapper(new_call, cls)
 
             cls.__call__ = new_call
 
         if ('__init__' not in members and not inspect.isabstract(cls) and
                 cls._parameters_):
+            # Build list of all parameters including inherited ones
 
             # If *all* the parameters have default values we can make them
-            # keyword arguments; otherwise they must all be positional arguments
-            if all(p.default is not None for p in cls._parameters_.values()):
+            # keyword arguments; otherwise they must all be positional
+            # arguments
+            if all(p.default is not None
+                   for p in pdict.values()):
                 args = ('self',)
                 kwargs = []
-                for param_name in cls.param_names:
-                    default = cls._parameters_[param_name].default
-                    unit = cls._parameters_[param_name].unit
-                    # If the unit was specified in the parameter but the default
-                    # is not a Quantity, attach the unit to the default.
+                for param_name, param_val in pdict.items():
+                    default = param_val.default
+                    unit = param_val.unit
+                    # If the unit was specified in the parameter but the
+                    # default is not a Quantity, attach the unit to the
+                    # default.
                     if unit is not None:
                         default = Quantity(default, unit, copy=False)
                     kwargs.append((param_name, default))
             else:
-                args = ('self',) + cls.param_names
+                args = ('self',) + tuple(pdict.keys())
                 kwargs = {}
 
             def __init__(self, *params, **kwargs):
@@ -419,9 +460,10 @@ class _ModelMeta(OrderedDescriptorContainer, InheritDocstrings, abc.ABCMeta):
     __sub__ = _model_oper('-')
     __mul__ = _model_oper('*')
     __truediv__ = _model_oper('/')
-    __pow__ = _model_oper('**')
-    __or__ = _model_oper('|')
-    __and__ = _model_oper('&')
+    __pow__ =     _model_oper('**')
+    __or__ =      _model_oper('|')
+    __and__ =     _model_oper('&')
+    ###__mod__ =     _model_oper('%')
 
     # *** Other utilities ***
 
@@ -479,6 +521,7 @@ class _ModelMeta(OrderedDescriptorContainer, InheritDocstrings, abc.ABCMeta):
 
 class Model(metaclass=_ModelMeta):
     """
+    Warning: DOCSTRING IS OUT OF DATE!
     Base class for all models.
 
     This is an abstract class and should not be instantiated directly.
@@ -599,12 +642,8 @@ class Model(metaclass=_ModelMeta):
     >>> g1.stddev.fixed
     True
     """
-
     parameter_constraints = Parameter.constraints
-    """
-    Primarily for informational purposes, these are the types of constraints
-    that can be set on a model's parameters.
-    """
+
     model_constraints = ('eqcons', 'ineqcons')
     """
     Primarily for informational purposes, these are the types of constraints
@@ -633,10 +672,8 @@ class Model(metaclass=_ModelMeta):
     standard_broadcasting = True
     fittable = False
     linear = True
-
     _separable = None
     """ A boolean flag to indicate whether a model is separable."""
-
     meta = metadata.MetaData()
     """A dict-like object to store optional information."""
 
@@ -676,12 +713,21 @@ class Model(metaclass=_ModelMeta):
         if meta is not None:
             self.meta = meta
         self._name = name
-
+        # add parameters to instance level by walking MRO list
+        mro = self.__class__.__mro__
+        for cls in mro:
+            if issubclass(cls, Model):
+                for parname, val in cls._parameter_vals_.items():
+                    newpar = copy.deepcopy(val)
+                    newpar.model = self
+                    self.__dict__[parname] = newpar
+                    #newpar._validator = val._validator
         self._initialize_constraints(kwargs)
         # Remaining keyword args are either parameter values or invalid
         # Parameter values must be passed in as keyword arguments in order to
         # distinguish them
         self._initialize_parameters(args, kwargs)
+        self._initialize_slices()
         self._initialize_unit_support()
 
     def _initialize_unit_support(self):
@@ -749,90 +795,64 @@ class Model(metaclass=_ModelMeta):
     def __len__(self):
         return self._n_models
 
+    def __setattr__(self, attr, value):
+        if isinstance(self, CompoundModel):
+            param_names = self._param_names
+        else:
+            param_names = self.param_names
+        if param_names is not None and attr in self.param_names:
+            param = self.__dict__[attr]
+            value = _tofloat(value)
+            if param._validator is not None:
+                param._validator(self, value)
+            # check consistency with previous shape and size
+            eshape = self._param_metrics[attr]['shape']
+            if eshape == ():
+                eshape = (1,)
+            vshape = np.array(value).shape
+            if vshape == ():
+                vshape = (1,)
+            esize = self._param_metrics[attr]['size']
+            if (np.size(value) != esize or
+                strip_ones(vshape) != strip_ones(eshape)):
+                raise InputParameterError(
+                    "Value for parameter {0} does not match shape or size\n"
+                    "expected by model ({1}, {2}) vs ({3}, {4})".format(
+                        attr, vshape, np.size(value), eshape, esize))
+            if param.unit is None:
+                if isinstance(value, Quantity):
+                    param._unit = value.unit
+                    param.value = value.value
+                else:
+                    param.value = value
+            else:
+                if not isinstance(value, Quantity):
+                    raise UnitsError("The '{0}' parameter should be given as a"
+                                     " Quantity because it was originally "
+                                     "initialized as a Quantity".format(
+                                                            param.name))
+                else:
+                    param._unit = value.unit
+                    param.value = value.value
+        else:
+            super().__setattr__(attr, value)
+
     def __call__(self, *inputs, **kwargs):
         """
         Evaluate this model using the given input(s) and the parameter values
         that were specified when the model was instantiated.
         """
-        inputs, format_info = self.prepare_inputs(*inputs, **kwargs)
 
-        parameters = self._param_sets(raw=True, units=True)
-        with_bbox = kwargs.pop('with_bounding_box', False)
-        fill_value = kwargs.pop('fill_value', np.nan)
-        bbox = None
-        if with_bbox:
-            try:
-                bbox = self.bounding_box
-            except NotImplementedError:
-                bbox = None
-            if self.n_inputs > 1 and bbox is not None:
-                # bounding_box is in python order - convert it to the order of the inputs
-                bbox = bbox[::-1]
-            if bbox is None:
-                outputs = self.evaluate(*chain(inputs, parameters))
-            else:
-                if self.n_inputs == 1:
-                    bbox = [bbox]
-                # indices where input is outside the bbox
-                # have a value of 1 in ``nan_ind``
-                nan_ind = np.zeros(inputs[0].shape, dtype=bool)
-                for ind, inp in enumerate(inputs):
-                    # Pass an ``out`` array so that ``axis_ind`` is array for scalars as well.
-                    axis_ind = np.zeros(inp.shape, dtype=bool)
-                    axis_ind = np.logical_or(inp < bbox[ind][0], inp > bbox[ind][1], out=axis_ind)
-                    nan_ind[axis_ind] = 1
-                # get an array with indices of valid inputs
-                valid_ind = np.logical_not(nan_ind).nonzero()
-                # inputs holds only inputs within the bbox
-                args = []
-                for input in inputs:
-                    if not input.shape:
-                        # shape is ()
-                        if nan_ind:
-                            outputs = [fill_value for a in args]
-                        else:
-                            args.append(input)
-                    else:
-                        args.append(input[valid_ind])
-                valid_result = self.evaluate(*chain(args, parameters))
-                if self.n_outputs == 1:
-                    valid_result = [valid_result]
-                # combine the valid results with the ``fill_value`` values
-                # outside the bbox
-                result = [np.zeros(inputs[0].shape) + fill_value for i in range(len(valid_result))]
-                for ind, r in enumerate(valid_result):
-                    if not result[ind].shape:
-                        # shape is ()
-                        result[ind] = r
-                    else:
-                        result[ind][valid_ind] = r
-                # format output
-                if self.n_outputs == 1:
-                    outputs = np.asarray(result[0])
-                else:
-                    outputs = [np.asarray(r) for r in result]
-        else:
-            outputs = self.evaluate(*chain(inputs, parameters))
-        if self.n_outputs == 1:
-            outputs = (outputs,)
+        return generic_call(self, *inputs, **kwargs)
 
-        outputs = self.prepare_outputs(format_info, *outputs, **kwargs)
-
-        outputs = self._process_output_units(inputs, outputs)
-
-        if self.n_outputs == 1:
-            return outputs[0]
-        else:
-            return outputs
-
-    # *** Arithmetic operators for creating compound models ***
-    __add__ = _model_oper('+')
-    __sub__ = _model_oper('-')
-    __mul__ = _model_oper('*')
-    __truediv__ = _model_oper('/')
-    __pow__ = _model_oper('**')
-    __or__ = _model_oper('|')
-    __and__ = _model_oper('&')
+    # # *** Arithmetic operators for creating compound models ***
+    # __add__ = compound._model_oper('+')
+    # __sub__ = compound._model_oper('-')
+    # __mul__ = compound._model_oper('*')
+    # __truediv__ = compound._model_oper('/')
+    # __pow__ = compound._model_oper('**')
+    # __or__ = compound._model_oper('|')
+    # __and__ = compound._model_oper('&')
 
     # *** Properties ***
     @property
@@ -908,6 +928,7 @@ class Model(metaclass=_ModelMeta):
             # Trivial, but not unheard of
             return self._parameters
 
+        self._parameters_to_array()
         start = self._param_metrics[self.param_names[0]]['slice'].start
         stop = self._param_metrics[self.param_names[-1]]['slice'].stop
 
@@ -933,6 +954,7 @@ class Model(metaclass=_ModelMeta):
             raise InputParameterError(
                 "Input parameter values not compatible with the model "
                 "parameters array: {0}".format(e))
+        self._array_to_parameters()
 
     @property
     def fixed(self):
@@ -993,7 +1015,6 @@ class Model(metaclass=_ModelMeta):
         make the inverse manually-overridable is added automatically by the
         base class.
         """
-
         if self._user_inverse is not None:
             return self._user_inverse
         elif self._inverse is not None:
@@ -1028,7 +1049,7 @@ class Model(metaclass=_ModelMeta):
         assigned to this model by a user, via assignment to ``model.inverse``.
         """
 
-        return self._user_inverse is not None
+        return self._user_inverse
 
     @property
     def bounding_box(self):
@@ -1173,9 +1194,9 @@ class Model(metaclass=_ModelMeta):
 
     def without_units_for_data(self, **kwargs):
         """
-        Return an instance of the model for which the parameter values have been
-        converted to the right units for the data, then the units have been
-        stripped away.
+        Return an instance of the model for which the parameter values have
+        been converted to the right units for the data, then the units have
+        been stripped away.
 
         The input and output Quantity objects should be given as keyword
         arguments.
@@ -1188,23 +1209,25 @@ class Model(metaclass=_ModelMeta):
         the model during the fitting (which might be done by e.g. scipy
         functions).
 
-        The units that the parameters should be converted to are not necessarily
-        the units of the input data, but are derived from them. Model subclasses
-        that want fitting to work in the presence of quantities need to define a
-        _parameter_units_for_data_units method that takes the input and output
-        units (as two dictionaries) and returns a dictionary giving the target
-        units for each parameter.
+        The units that the parameters should be converted to are not
+        necessarily the units of the input data, but are derived from them.
+        Model subclasses that want fitting to work in the presence of
+        quantities need to define a _parameter_units_for_data_units method
+        that takes the input and output units (as two dictionaries) and
+        returns a dictionary giving the target units for each parameter.
         """
 
         model = self.copy()
 
-        inputs_unit = {inp: getattr(kwargs[inp], 'unit', dimensionless_unscaled)
+        inputs_unit = {inp: getattr(kwargs[inp], 'unit',
+                       dimensionless_unscaled)
                        for inp in self.inputs if kwargs[inp] is not None}
 
-        outputs_unit = {out: getattr(kwargs[out], 'unit', dimensionless_unscaled)
+        outputs_unit = {out: getattr(kwargs[out], 'unit',
+                        dimensionless_unscaled)
                         for out in self.outputs if kwargs[out] is not None}
-
-        parameter_units = self._parameter_units_for_data_units(inputs_unit, outputs_unit)
+        parameter_units = self._parameter_units_for_data_units(inputs_unit,
+                                                               outputs_unit)
 
         for name, unit in parameter_units.items():
             parameter = getattr(model, name)
@@ -1230,9 +1253,9 @@ class Model(metaclass=_ModelMeta):
         the model during the fitting (which might be done by e.g. scipy
         functions).
 
-        The units that the parameters will gain are not necessarily the units of
-        the input data, but are derived from them. Model subclasses that want
-        fitting to work in the presence of quantities need to define a
+        The units that the parameters will gain are not necessarily the units
+        of the input data, but are derived from them. Model subclasses that
+        want fitting to work in the presence of quantities need to define a
         _parameter_units_for_data_units method that takes the input and output
         units (as two dictionaries) and returns a dictionary giving the target
         units for each parameter.
@@ -1240,17 +1263,20 @@ class Model(metaclass=_ModelMeta):
 
         model = self.copy()
 
-        inputs_unit = {inp: getattr(kwargs[inp], 'unit', dimensionless_unscaled)
+        inputs_unit = {inp: getattr(kwargs[inp], 'unit',
+                       dimensionless_unscaled)
                        for inp in self.inputs if kwargs[inp] is not None}
 
-        outputs_unit = {out: getattr(kwargs[out], 'unit', dimensionless_unscaled)
+        outputs_unit = {out: getattr(kwargs[out], 'unit',
+                        dimensionless_unscaled)
                         for out in self.outputs if kwargs[out] is not None}
 
-        parameter_units = self._parameter_units_for_data_units(inputs_unit, outputs_unit)
+        parameter_units = self._parameter_units_for_data_units(inputs_unit,
+                                                               outputs_unit)
 
         # We are adding units to parameters that already have a value, but we
-        # don't want to convert the parameter, just add the unit directly, hence
-        # the call to _set_unit.
+        # don't want to convert the parameter, just add the unit directly,
+        # hence the call to _set_unit.
         for name, unit in parameter_units.items():
             parameter = getattr(model, name)
             parameter._set_unit(unit, force=True)
@@ -1307,9 +1333,9 @@ class Model(metaclass=_ModelMeta):
             An array to be used to translate from the model's input coordinates
             to the ``out`` array. It should have the property that
             ``self(coords)`` yields the same shape as ``out``.  If ``out`` is
-            not specified, ``coords`` will be used to determine the shape of the
-            returned array. If this is not provided (or None), the model will be
-            evaluated on a grid determined by `Model.bounding_box`.
+            not specified, ``coords`` will be used to determine the shape of
+            the returned array. If this is not provided (or None), the model
+            will be evaluated on a grid determined by `Model.bounding_box`.
 
         Returns
         -------
@@ -1318,13 +1344,14 @@ class Model(metaclass=_ModelMeta):
             new array from evaluating the model over ``coords``.
             If ``out`` and ``coords`` are both `None`, the returned array is
             limited to the `Model.bounding_box` limits. If
-            `Model.bounding_box` is `None`, ``arr`` or ``coords`` must be passed.
+            `Model.bounding_box` is `None`, ``arr`` or ``coords`` must be
+            passed.
 
         Raises
         ------
         ValueError
-            If ``coords`` are not given and the the `Model.bounding_box` of this
-            model is not set.
+            If ``coords`` are not given and the the `Model.bounding_box` of
+            this model is not set.
 
         Examples
         --------
@@ -1366,7 +1393,8 @@ class Model(metaclass=_ModelMeta):
                                  'number of dimensions.')
 
         if bbox is not None:
-            # assures position is at center pixel, important when using add_array
+            # Assures position is at center pixel,
+            # important when using add_array.
             pd = np.array([(np.mean(bb), np.ceil((bb[1] - bb[0]) / 2))
                            for bb in bbox]).astype(int).T
             pos, delta = pd
@@ -1430,9 +1458,9 @@ class Model(metaclass=_ModelMeta):
     @property
     def return_units(self):
         """
-        This property is used to indicate what units or sets of units the output
-        of evaluate should be in, and returns a dictionary mapping outputs to
-        units (or `None` if any units are accepted).
+        This property is used to indicate what units or sets of units the
+        output of evaluate should be in, and returns a dictionary mapping
+        outputs to units (or `None` if any units are accepted).
 
         Model sub-classes can also use function annotations in evaluate to
         indicate valid output units, in which case this property should not be
@@ -1498,9 +1526,10 @@ class Model(metaclass=_ModelMeta):
 
             # We combine any instance-level input equivalencies with user
             # specified ones at call-time.
-            input_units_equivalencies = _combine_equivalency_dict(self.inputs,
-                                                                  equivalencies,
-                                                                  self.input_units_equivalencies)
+            input_units_equivalencies = \
+                _combine_equivalency_dict(self.inputs,
+                                          equivalencies,
+                                          self.input_units_equivalencies)
 
             # We now iterate over the different inputs and make sure that their
             # units are consistent with those specified in input_units.
@@ -1517,16 +1546,24 @@ class Model(metaclass=_ModelMeta):
                     # We check for consistency of the units with input_units,
                     # taking into account any equivalencies
 
-                    if inputs[i].unit.is_equivalent(input_unit, equivalencies=input_units_equivalencies[input_name]):
+                    if inputs[i].unit.is_equivalent(
+                            input_unit,
+                            equivalencies=
+                            input_units_equivalencies[input_name]):
 
                         # If equivalencies have been specified, we need to
-                        # convert the input to the input units - this is because
-                        # some equivalencies are non-linear, and we need to be
-                        # sure that we evaluate the model in its own frame
-                        # of reference. If input_units_strict is set, we also
-                        # need to convert to the input units.
-                        if len(input_units_equivalencies) > 0 or self.input_units_strict[input_name]:
-                            inputs[i] = inputs[i].to(input_unit, equivalencies=input_units_equivalencies[input_name])
+                        # convert the input to the input units - this is
+                        # because some equivalencies are non-linear, and
+                        # we need to be sure that we evaluate the model in
+                        # its own frame of reference. If input_units_strict
+                        # is set, we also need to convert to the input units.
+                        if len(input_units_equivalencies) > 0 or \
+                               self.input_units_strict[input_name]:
+                            inputs[i] = \
+                                inputs[i].to(
+                                    input_unit,
+                                    equivalencies=input_units_equivalencies[
+                                        input_name])
 
                     else:
 
@@ -1534,20 +1571,23 @@ class Model(metaclass=_ModelMeta):
                         # to be able to raise more appropriate/nicer exceptions
 
                         if input_unit is dimensionless_unscaled:
-                            raise UnitsError("{0}: Units of input '{1}', {2} ({3}), could not be "
-                                             "converted to required dimensionless "
-                                             "input".format(name,
-                                                            self.inputs[i],
+                            raise UnitsError("Units of input '{0}', {1} ({2}),"
+                                             "could not be converted to "
+                                             "required dimensionless "
+                                             "input".format(self.inputs[i],
                                                             inputs[i].unit,
-                                                            inputs[i].unit.physical_type))
+                                                            inputs[i].unit.
+                                                            physical_type))
                         else:
-                            raise UnitsError("{0}: Units of input '{1}', {2} ({3}), could not be "
-                                             "converted to required input units of "
-                                             "{4} ({5})".format(name, self.inputs[i],
-                                                                inputs[i].unit,
-                                                                inputs[i].unit.physical_type,
-                                                                input_unit,
-                                                                input_unit.physical_type))
+                            raise UnitsError("Units of input '{0}', {1} ({2}),"
+                                             " could not be "
+                                             "converted to required input"
+                                             " units of {3} ({4})".format(
+                                                self.inputs[i],
+                                                inputs[i].unit,
+                                                inputs[i].unit.physical_type,
+                                                input_unit,
+                                                input_unit.physical_type))
                 else:
 
                     # If we allow dimensionless input, we add the units to the
@@ -1555,11 +1595,12 @@ class Model(metaclass=_ModelMeta):
                     # exception.
 
                     if (not self.input_units_allow_dimensionless[input_name] and
-                       input_unit is not dimensionless_unscaled and input_unit is not None):
+                       input_unit is not dimensionless_unscaled and
+                       input_unit is not None):
                         if np.any(inputs[i] != 0):
-                            raise UnitsError("{0}: Units of input '{1}', (dimensionless), could not be "
+                            raise UnitsError("Units of input '{0}', (dimensionless), could not be "
                                              "converted to required input units of "
-                                             "{2} ({3})".format(name, self.inputs[i], input_unit,
+                                             "{1} ({2})".format(self.inputs[i], input_unit,
                                                                 input_unit.physical_type))
 
         return inputs
@@ -1642,7 +1683,16 @@ class Model(metaclass=_ModelMeta):
             # self is a class, not an instance
             needs_initialization = True
             dummy_args = (0,) * len(param_names)
+
             self = self.__new__(self, *dummy_args)
+            self.__init__()
+        if isinstance(self, CompoundModel):
+            # Need to set parameter attributes
+            self._parameters_ = param_names
+            self._parameter_vals_ = \
+                [getattr(existing, param_name) for param_name in param_names]
+            for param_name in param_names:
+                self.__dict__[param_name] = getattr(existing, param_name)
         else:
             needs_initialization = False
             self = self.copy()
@@ -1658,15 +1708,17 @@ class Model(metaclass=_ModelMeta):
 
         self._n_models = existing._n_models
         self._model_set_axis = existing._model_set_axis
-        self._parameters = existing._parameters
+        # self._parameters = existing._parameters
 
-        self._param_metrics = defaultdict(dict)
+        # self._param_metrics = defaultdict(dict)
+        # for param_a, param_b in aliases.items():
+        #     # Take the param metrics info for the giving parameters in the
+        #     # existing model, and hand them to the appropriate parameters in
+        #     # the new model
+        #     self._param_metrics[param_a] = existing._param_metrics[param_b]
+
         for param_a, param_b in aliases.items():
-            # Take the param metrics info for the giving parameters in the
-            # existing model, and hand them to the appropriate parameters in
-            # the new model
-            self._param_metrics[param_a] = existing._param_metrics[param_b]
-
+            setattr(self, param_a, getattr(existing, param_b))
         if needs_initialization:
             self.__init__(*dummy_args)
 
@@ -1678,29 +1730,37 @@ class Model(metaclass=_ModelMeta):
         `Model.__init__` and store them in private instance attributes.
         """
 
-        if hasattr(self, '_constraints'):
-            # Skip constraint initialization if it has already been handled via
-            # an alternate initialization
-            return
-
-        self._constraints = {}
         # Pop any constraints off the keyword arguments
         for constraint in self.parameter_constraints:
             values = kwargs.pop(constraint, {})
-            self._constraints[constraint] = values.copy()
-
-            # Update with default parameter constraints
-            for param_name in self.param_names:
-                param = getattr(self, param_name)
-
-                # Parameters don't have all constraint types
-                value = getattr(param, constraint)
-                if value is not None:
-                    self._constraints[constraint][param_name] = value
-
+            for ckey, cvalue in values.items():
+                param = getattr(self, ckey)
+                setattr(param, constraint, cvalue)
+        self._mconstraints = {}
         for constraint in self.model_constraints:
             values = kwargs.pop(constraint, [])
-            self._constraints[constraint] = values
+            self._mconstraints[constraint] = values
+
+    @property
+    def _constraints(self):
+        """
+        Extract parameter constraints into dictionary of dictionaries
+        """
+        constraints = {}
+        for constraint in self.parameter_constraints:
+            tdict = {}
+            for param_name in self.param_names:
+                param = getattr(self, param_name)
+                tdict[param_name] = getattr(param, constraint)
+            constraints[constraint] = tdict
+        for constraint in self.model_constraints:
+            constraints[constraint] = self._mconstraints[constraint]
+
+        return constraints
+
+    @_constraints.setter
+    def _constraints(self, constraints):
+        self._initialize_constraints(constraints)
 
     def _initialize_parameters(self, args, kwargs):
         """
@@ -1709,12 +1769,6 @@ class Model(metaclass=_ModelMeta):
         FittableModels the _param_name attributes actually just reference
         slices of this array.
         """
-
-        if hasattr(self, '_parameters'):
-            # Skip parameter initialization if it has already been handled via
-            # an alternate initialization
-            return
-
         n_models = kwargs.pop('n_models', None)
 
         if not (n_models is None or
@@ -1746,7 +1800,7 @@ class Model(metaclass=_ModelMeta):
         # Process positional arguments by matching them up with the
         # corresponding parameters in self.param_names--if any also appear as
         # keyword arguments this presents a conflict
-        params = {}
+        params = set()
         if len(args) > len(self.param_names):
             raise TypeError(
                 "{0}.__init__() takes at most {1} positional arguments ({2} "
@@ -1756,6 +1810,7 @@ class Model(metaclass=_ModelMeta):
         self._model_set_axis = model_set_axis
         self._param_metrics = defaultdict(dict)
 
+        supplied_parvalues = []
         for idx, arg in enumerate(args):
             if arg is None:
                 # A value of None implies using the default value, if exists
@@ -1763,7 +1818,13 @@ class Model(metaclass=_ModelMeta):
             # We use quantity_asanyarray here instead of np.asanyarray because
             # if any of the arguments are quantities, we need to return a
             # Quantity object not a plain Numpy array.
-            params[self.param_names[idx]] = quantity_asanyarray(arg, dtype=float)
+            param_name = self.param_names[idx]
+            params.add(param_name)
+            if not isinstance(arg, Parameter):
+                value = quantity_asanyarray(arg, dtype=float)
+            else:
+                value = arg
+            self._initialize_parameter_value(param_name, value)
 
         # At this point the only remaining keyword arguments should be
         # parameter names; any others are in error.
@@ -1776,10 +1837,16 @@ class Model(metaclass=_ModelMeta):
                 value = kwargs.pop(param_name)
                 if value is None:
                     continue
-                # We use quantity_asanyarray here instead of np.asanyarray because
-                # if any of the arguments are quantities, we need to return a
-                # Quantity object not a plain Numpy array.
-                params[param_name] = quantity_asanyarray(value, dtype=float)
+                # We use quantity_asanyarray here instead of np.asanyarray
+                # because if any of the arguments are quantities, we need
+                # to return a Quantity object not a plain Numpy array.
+                value = quantity_asanyarray(value, dtype=float)
+                params.add(param_name)
+                self._initialize_parameter_value(param_name, value)
+        # Now deal with case where param_name is not supplied by args or kwargs
+        for param_name in self.param_names:
+            if param_name not in params:
+                self._initialize_parameter_value(param_name, None)
 
         if kwargs:
             # If any keyword arguments were left over at this point they are
@@ -1803,7 +1870,8 @@ class Model(metaclass=_ModelMeta):
             else:
                 min_ndim = model_set_axis + 1
 
-            for name, value in params.items():
+            for name in self.param_names:
+                value = getattr(self, name)
                 param_ndim = np.ndim(value)
                 if param_ndim < min_ndim:
                     raise InputParameterError(
@@ -1823,74 +1891,85 @@ class Model(metaclass=_ModelMeta):
                         "Inconsistent dimensions for parameter {0!r} for "
                         "{1} model sets.  The length of axis {2} must be the "
                         "same for all input parameter values".format(
-                        name, n_models, model_set_axis))
+                            name, n_models, model_set_axis))
 
-            self._check_param_broadcast(params, max_ndim)
+            self._check_param_broadcast(max_ndim)
         else:
             if n_models is None:
                 n_models = 1
 
-            self._check_param_broadcast(params, None)
+            self._check_param_broadcast(None)
 
         self._n_models = n_models
-        self._initialize_parameter_values(params)
+        ## now validate parameters
+        for name in params:
+            param = getattr(self, name)
+            if param._validator is not None:
+                param._validator(self, param.value)
 
-    def _initialize_parameter_values(self, params):
-        # self._param_metrics should have been initialized in
-        # self._initialize_parameters
-        param_metrics = self._param_metrics
-        total_size = 0
-
-        for name in self.param_names:
-            unit = None
-            param_descr = getattr(self, name)
-
-            if params.get(name) is None:
-                default = param_descr.default
-
-                if default is None:
+    def _initialize_parameter_value(self, param_name, value):
+        """Mostly deals with consistency checks and determining unit issues."""
+        if isinstance(value, Parameter):
+            self.__dict__[param_name] = value
+            return
+        param = getattr(self, param_name)
+        # Use default if value is not provided
+        if value is None:
+            default = param.default
+            if default is None:
                     # No value was supplied for the parameter and the
                     # parameter does not have a default, therefore the model
                     # is underspecified
                     raise TypeError(
                         "{0}.__init__() requires a value for parameter "
-                        "{1!r}".format(self.__class__.__name__, name))
-
-                value = params[name] = default
-                unit = param_descr.unit
+                        "{1!r}".format(self.__class__.__name__, param_name))
+            value = default
+            unit = param.unit
+        else:
+            if isinstance(value, Quantity):
+                unit = value.unit
+                value = value.value
             else:
-                value = params[name]
-                if isinstance(value, Quantity):
-                    unit = value.unit
-                else:
-                    unit = None
+                unit = None
+        if unit is None and param.unit is not None:
+            raise InputParameterError(
+                "{0}.__init__() requires a Quantity for parameter "
+                "{1!r}".format(self.__class__.__name__, param_name))
+        param._unit = unit
+        param.internal_unit = None
+        if param._setter is not None:
+            if unit is not None:
+                _val = param._setter(value * unit)
+            else:
+                _val = param._setter(value)
+            if isinstance(_val, Quantity):
+                param.internal_unit = _val.unit
+                param._internal_value = np.array(_val.value)
+            else:
+                param.internal_unit = None
+                param._internal_value = np.array(_val)
+        else:
+            param._value = np.array(value)
 
+    def _initialize_slices(self):
+
+        param_metrics = self._param_metrics
+        total_size = 0
+
+        for name in self.param_names:
+            unit = None
+            param = getattr(self, name)
+            value = param.value
             param_size = np.size(value)
             param_shape = np.shape(value)
-
             param_slice = slice(total_size, total_size + param_size)
-
             param_metrics[name]['slice'] = param_slice
             param_metrics[name]['shape'] = param_shape
-
-            if unit is None and param_descr.unit is not None:
-                raise InputParameterError(
-                    "{0}.__init__() requires a Quantity for parameter "
-                    "{1!r}".format(self.__class__.__name__, name))
-
-            param_metrics[name]['orig_unit'] = unit
-            param_metrics[name]['raw_unit'] = None
-            if param_descr._setter is not None:
-                _val = param_descr._setter(value)
-                if isinstance(_val, Quantity):
-                    param_metrics[name]['raw_unit'] = _val.unit
-                else:
-                    param_metrics[name]['raw_unit'] = None
+            param_metrics[name]['size'] = param_size
             total_size += param_size
-
-        self._param_metrics = param_metrics
         self._parameters = np.empty(total_size, dtype=np.float64)
 
+    def _parameters_to_array(self):
         # Now set the parameter values (this will also fill
         # self._parameters)
         # TODO: This is a bit ugly, but easier to deal with than how this was
@@ -1898,27 +1977,27 @@ class Model(metaclass=_ModelMeta):
         # though, in particular once we move the _get/set_model_value methods
         # out of Parameter and into Model (renaming them
         # _get/set_parameter_value)
-        for name, value in params.items():
-            # value here may be a Quantity object.
-            param_descr = getattr(self, name)
-            unit = param_descr.unit
-            value = np.array(value)
-            orig_unit = param_metrics[name]['orig_unit']
-            if param_descr._setter is not None:
-                if unit is not None:
-                    value = np.asarray(param_descr._setter(value * orig_unit).value)
-                else:
-                    value = param_descr._setter(value)
+        param_metrics = self._param_metrics
+        for name in self.param_names:
+            param = getattr(self, name)
+            value = param.value
+            if not isinstance(value, np.ndarray):
+                value = np.array([value])
             self._parameters[param_metrics[name]['slice']] = value.ravel()
 
         # Finally validate all the parameters; we do this last so that
         # validators that depend on one of the other parameters' values will
         # work
-        for name in params:
-            param_descr = getattr(self, name)
-            param_descr.validator(param_descr.value)
 
-    def _check_param_broadcast(self, params, max_ndim):
+    def _array_to_parameters(self):
+        param_metrics = self._param_metrics
+        for name in self.param_names:
+            param = getattr(self, name)
+            value = self._parameters[param_metrics[name]['slice']]
+            value.shape = param_metrics[name]['shape']
+            param.value = value
+
+    def _check_param_broadcast(self, max_ndim):
         """
         This subroutine checks that all parameter arrays can be broadcast
         against each other, and determines the shapes parameters must have in
@@ -1928,27 +2007,14 @@ class Model(metaclass=_ModelMeta):
         broadcast and returns an empty dict if so.  This mode is only used for
         single model sets.
         """
-
         all_shapes = []
         param_names = []
         model_set_axis = self._model_set_axis
 
         for name in self.param_names:
-            # Previously this just used iteritems(params), but we loop over all
-            # param_names instead just to ensure some determinism in the
-            # ordering behavior
-            if name not in params:
-                continue
-
-            value = params[name]
-            param_names.append(name)
-            # We've already checked that each parameter array is compatible in
-            # the model_set_axis dimension, but now we need to check the
-            # dimensions excluding that axis
-            # Split the array dimensions into the axes before model_set_axis
-            # and after model_set_axis
+            param = getattr(self, name)
+            value = param.value
             param_shape = np.shape(value)
-
             param_ndim = len(param_shape)
             if max_ndim is not None and param_ndim < max_ndim:
                 # All arrays have the same number of dimensions up to the
@@ -1977,8 +2043,8 @@ class Model(metaclass=_ModelMeta):
             check_broadcast(*all_shapes)
         except IncompatibleShapeError as exc:
             shape_a, shape_a_idx, shape_b, shape_b_idx = exc.args
-            param_a = param_names[shape_a_idx]
-            param_b = param_names[shape_b_idx]
+            param_a = self.param_names[shape_a_idx]
+            param_b = self.param_names[shape_b_idx]
 
             raise InputParameterError(
                 "Parameter {0!r} of shape {1!r} cannot be broadcast with "
@@ -2001,18 +2067,18 @@ class Model(metaclass=_ModelMeta):
         entirely in the near future.
         """
 
-        param_metrics = self._param_metrics
+        #param_metrics = self._param_metrics
         values = []
         shapes = []
         for name in self.param_names:
             param = getattr(self, name)
 
-            if raw:
-                value = param._raw_value
+            if raw and param._setter:
+                value = param._internal_value
             else:
                 value = param.value
 
-            broadcast_shape = param_metrics[name].get('broadcast_shape')
+            broadcast_shape = self._param_metrics[name].get('broadcast_shape')
             if broadcast_shape is not None:
                 value = value.reshape(broadcast_shape)
 
@@ -2025,8 +2091,8 @@ class Model(metaclass=_ModelMeta):
                 value = np.array([value])
 
             if units:
-                if raw and self._param_metrics[name]['raw_unit'] is not None:
-                    unit = self._param_metrics[name]['raw_unit']
+                if raw and param.internal_unit is not None:
+                    unit = param.internal_unit
                 else:
                     unit = param.unit
                 if unit is not None:
@@ -2218,6 +2284,1005 @@ BINARY_OPERATORS = {
     '&': _join_operator
 }
 
+SPECIAL_OPERATORS = {}
+
+
+def _add_special_operator(sop_name, sop):
+    SPECIAL_OPERATORS[sop_name] = sop
+
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+
+"""
+This module provides an alternate implementation of compound models that
+is lighter weight than the default implementation.
+
+Using this alternate version of compound models requires calling a function
+in core to make this one the default. If this is used, *is is higly recommended
+that the mode be set back to the default at the end of the code constructing
+compound models so that other code depending on the default behavior is
+not affected!*
+
+As an example of how to do this:
+
+from astropy.modeling.core import set_compound_model
+prevcm = set_compound_model('lite')
+compound_model = Gaussian1D(1., 0.5, 0.1) + Gaussian1D(2, 0.7, 0.2)
+set_compound_model(prevcm) # the default model type is 'regular'
+
+Things currently supported:
+
+- evaluation
+- inverse evaluation (if possible or provided)
+
+Things not currently supported (but will be if adopted):
+
+- picklingt
+  compound models (this implementation walks the tree every time)
+- and other things I've overlooked at this moment...
+
+Things that will never be supported:
+
+- Compound models of model classes (as opposed to instances)
+"""
+
+
+class CompoundModel(Model):
+    '''
+    Lightweight compound model implementation
+    '''
+
+    def __init__(self, op, left, right, name=None, inverse=None):
+        self.__dict__['_param_names'] = None
+        self._n_submodels = None
+        self.op = op
+        self.left = left
+        self.right = right
+        self._bounding_box = None
+        self._user_bounding_box = None
+        self._leaflist = None
+        self._parameters = None
+        self._parameters_ = None
+        self._param_metrics = None
+        self._has_inverse = False  # may be set to True in following code
+        if inverse:
+            self._user_inverse = inverse
+        else:
+            self._user_inverse = None
+        if op != '%' and len(left) != len(right):
+            raise ValueError(
+                'Both operands must have equal values for n_models')
+        else:
+            self._n_models = len(left)
+        if op in ['+', '-', '*', '/', '**'] or op in SPECIAL_OPERATORS:
+            if (left.n_inputs != right.n_inputs) or \
+               (left.n_outputs != right.n_outputs):
+                raise ModelDefinitionError(
+                    'Both operands must match numbers of inputs and outputs')
+            else:
+                self.n_inputs = left.n_inputs
+                self.n_outputs = left.n_outputs
+                self.inputs = left.inputs
+                self.outputs = left.outputs
+        elif op == '&':
+            self.n_inputs = left.n_inputs + right.n_inputs
+            self.n_outputs = left.n_outputs + right.n_outputs
+            self.inputs = combine_labels(left.inputs, right.inputs)
+            self.outputs = combine_labels(left.outputs, right.outputs)
+            if inverse is None and self.both_inverses_exist():
+                self._has_inverse = True
+                self._inverse = CompoundModel('&',
+                                              self.left.inverse,
+                                              self.right.inverse,
+                                              inverse=self)
+        elif op == '|':
+            if left.n_outputs != right.n_inputs:
+                raise ModelDefinitionError(
+                    'left operand number of outputs must'
+                    'match right operand number of inputs')
+            self.n_inputs = left.n_inputs
+            self.n_outputs = right.n_outputs
+            self.inputs = left.inputs
+            self.outputs = right.outputs
+            if inverse is None and self.both_inverses_exist():
+                self._has_inverse = True
+                self._inverse = CompoundModel('|',
+                                              self.right.inverse,
+                                              self.left.inverse,
+                                              inverse=self)
+        ###elif op == '%':
+        ###    if not isinstance(right, dict):
+        ###        raise ValueError('expecting dictionary for right side of "%"'
+        ###                         ' operator')
+            # else:
+            #     # Dict keys must match either possible indices
+            #     # for model on left side,
+            #     # or names for inputs.
+            #     self.n_inputs = left.n_inputs - len(right)
+            #     self.outputs = left.outputs
+            #     self.n_outputs = left.n_outputs
+            #     newinputs = list(left.inputs)
+            #     keys = right.keys()
+            #     input_ind = []
+            #     for key in keys:
+            #         if isinstance(key, int):
+            #             if key >= left.n_inputs or key < 0:
+            #                 raise ValueError(
+            #                     'substitution key integer value '
+            #                     'not among possible input choices')
+            #             else:
+            #                 if key in input_ind:
+            #                     raise ValueError("Duplicate specification of "
+            #                                      "same input (index/name)")
+            #                 else:
+            #                     input_ind.append(key)
+            #         elif isinstance(key, str):
+            #             if key not in left.inputs:
+            #                 raise ValueError(
+            #                     'Substitution key string not among possible '
+            #                     'input choices')
+            #             # Check to see it doesn't match positional
+            #             # specification.
+            #             ind = left.inputs.index(key)
+            #             if ind in input_ind:
+            #                 raise ValueError("Duplicate specification of "
+            #                                  "same input (index/name)")
+            #             else:
+            #                 input_ind.append(ind)
+            #     # Remove substituted inputs
+            #     input_ind.sort()
+            #     input_ind.reverse()
+            #     for ind in input_ind:
+            #         del newinputs[ind]
+            #     self.inputs = tuple(newinputs)
+
+        else:
+            raise ModelDefinitionError('Illegal operator: ', self.op)
+        if inverse is not None:
+            self._inverse = inverse
+            self._has_inverse = True
+        self.name = name
+        self._fittable = None
+        self.fit_deriv = None
+        self.col_fit_deriv = None
+        if op in ('|', '+', '-'):
+            self.linear = left.linear and right.linear
+        else:
+            self.linear = False
+        self.eqcons = False
+        self.ineqcons = False
+
+    def __len__(self):
+        return self._n_models
+
+    def evaluate(self, *args, **kwargs):
+        pass
+
+    @property
+    def n_submodels(self):
+        if self._leaflist is None:
+            self._make_leaflist()
+        return len(self._leaflist)
+
+    @property
+    def submodel_names(self):
+        if self._leaflist is None:
+            self._make_leaflist()
+        names = [item.name for item in self._leaflist]
+        nonecount = 0
+        newnames = []
+        for item in names:
+            if item is None:
+                newnames.append('None_{}'.format(nonecount))
+                nonecount += 1
+            else:
+                newnames.append(item)
+        return tuple(newnames)
+
+    def both_inverses_exist(self):
+        '''
+        if both members of this compound model have inverses return True
+        '''
+        try:
+            linv = self.left.inverse
+            rinv = self.right.inverse
+        except NotImplementedError:
+            return False
+        if isinstance(self.left, CompoundModel):
+            if not self.left.has_inverse():
+                return False
+        if isinstance(self.right, CompoundModel):
+            if not self.right.has_inverse():
+                return False
+        return True
+
+    def __call__(self, *args, **kw):
+        op = self.op
+        if op != '%':
+            if op != '&':
+                leftval = self.left(*args, **kw)
+                if op != '|':
+                    rightval = self.right(*args, **kw)
+            else:
+                leftval = self.left(*(args[:self.left.n_inputs]), **kw)
+                rightval = self.right(*(args[self.left.n_inputs:]), **kw)
+            if op == '+':
+                return binary_operation(operator.add, leftval, rightval)
+            elif op == '-':
+                return binary_operation(operator.sub, leftval, rightval)
+            elif op == '*':
+                return binary_operation(operator.mul, leftval, rightval)
+            elif op == '/':
+                return binary_operation(operator.truediv, leftval, rightval)
+            elif op == '**':
+                return binary_operation(operator.pow, leftval, rightval)
+            elif op == '&':
+                if not isinstance(leftval, tuple):
+                    leftval = (leftval,)
+                if not isinstance(rightval, tuple):
+                    rightval = (rightval,)
+                return leftval + rightval
+            elif op == '|':
+                if isinstance(leftval, tuple):
+                    return self.right(*leftval, **kw)
+                else:
+                    return self.right(leftval, **kw)
+            elif op in SPECIAL_OPERATORS:
+                return binary_operation(SPECIAL_OPERATORS[op], leftval, rightval)
+        # elif op == '%':
+        #     subs = self.right
+        #     newargs = list(args)
+        #     subinds = []
+        #     subvals = []
+        #     for key in subs.keys():
+        #         if isinstance(key, int):
+        #             subinds.append(key)
+        #         elif isinstance(key, str):
+        #             ind = self.left.inputs.index(key)
+        #             subinds.append(ind)
+        #         subvals.append(subs[key])
+        #     # Turn inputs specified in kw into positional indices.
+        #     # Names for compound inputs do not propagate to sub models.
+        #     kwind = []
+        #     kwval = []
+        #     for kwkey in list(kw.keys()):
+        #         if kwkey in self.inputs:
+        #             ind = self.inputs.index(kwkey)
+        #             if ind < len(args):
+        #                 raise ValueError("Keyword argument duplicates "
+        #                                 "positional value supplied")
+        #             kwind.append(ind)
+        #             kwval.append(kw[kwkey])
+        #             del kw[kwkey]
+        #     # Build new argument list
+        #     # Append keyword specified args first
+        #     if kwind:
+        #         kwargs = list(zip(kwind, kwval))
+        #         kwargs.sort()
+        #         kwindsorted, kwvalsorted = list(zip(*kwargs))
+        #         newargs = newargs + list(kwvalsorted)
+        #     if subinds:
+        #         subargs = list(zip(subinds, subvals))
+        #         subargs.sort()
+        #         subindsorted, subvalsorted = list(zip(*subargs))
+        #     # The substitutions must be inserted in order
+        #     for ind, val in subargs:
+        #         newargs.insert(ind, val)
+        #     return self.left(*newargs, **kw)
+        else:
+            raise ModelDefinitionError('unrecognized operator')
+
+    @property
+    def param_names(self):
+        if self._param_names is None:
+            self.map_parameters()
+        return self._param_names
+
+    def _make_leaflist(self):
+        tdict = {}
+        leaflist = []
+        make_subtree_dict(self, '', tdict, leaflist)
+        self._leaflist = leaflist
+        self._tdict = tdict
+
+    def __getattr__(self, name):
+        """
+        If someone accesses an attribute not already defined, map the
+        parameters, and then see if the requested attribute is one of
+        the parameters
+        """
+        # The following test is needed to avoid infinite recursion
+        # caused by deepcopy. There may be other such cases discovered.
+        if name == '__setstate__':
+            raise AttributeError
+        self.map_parameters()
+        if name in self._param_names:
+            return self.__dict__[name]
+        else:
+            raise AttributeError('Attribute "{}" not found'.format(name))
+
+    def __getitem__(self, index):
+        if self._leaflist is None:
+            self._make_leaflist()
+        leaflist = self._leaflist
+        tdict = self._tdict
+        if isinstance(index, slice):
+            if index.step:
+                raise ValueError('Steps in slices not supported '
+                                 'for compound models')
+            # Following won't work for negative indices
+            if index.start:
+                start = index.start
+            else:
+                start = 0
+            if index.stop:
+                stop = index.stop
+            else:
+                stop = len(leaflist) - 1
+            if start < 0:
+                start = len(leaflist) + start
+            if stop < 0:
+                stop = len(leaflist) + stop
+            # now search for matching node:
+            for key in tdict:
+                node, leftind, rightind = tdict[key]
+                if leftind == start and rightind == stop:
+                    return node
+            raise IndexError("No appropriate subtree matches slice")
+        elif isinstance(index, type(0)):
+            return leaflist[index]
+        else:
+            raise TypeError('index must be integer or slice')
+    @property
+    def n_inputs(self):
+        return self._n_inputs
+
+    @n_inputs.setter
+    def n_inputs(self, value):
+        self._n_inputs = value
+
+    @property
+    def n_outputs(self):
+        return self._n_outputs
+
+    @n_outputs.setter
+    def n_outputs(self, value):
+        self._n_outputs = value
+
+    @property
+    def eqcons(self):
+        return self._eqcons
+
+    @eqcons.setter
+    def eqcons(self, value):
+        self._eqcons = value
+
+    @property
+    def ineqcons(self):
+        return self._eqcons
+
+    @ineqcons.setter
+    def ineqcons(self, value):
+        self._eqcons = value
+
+    def traverse_postorder(self):
+        stack = deque([self])
+        stacked = deque([])
+        while stack:
+            node = stack[-1]
+            if not isinstance(node, CompoundModel):
+                yield stack.pop()
+            elif node not in stacked:
+                stacked.append(node)
+                stack.append(node.right)
+                stack.append(node.left)
+            else:
+                yield stack.pop()
+
+    def _format_expression(self, format_leaf=None):
+        leaf_idx = 0
+        operands = deque()
+
+        if format_leaf is None:
+            format_leaf = lambda i, l: '[{0}]'.format(i)
+
+        for node in self.traverse_postorder():
+            if not isinstance(node, CompoundModel):
+                operands.append(format_leaf(leaf_idx, node))
+                leaf_idx += 1
+                continue
+
+            oper_order = OPERATOR_PRECEDENCE[node.op]
+            right = operands.pop()
+            left = operands.pop()
+
+            if isinstance(node, CompoundModel):
+                if (isinstance(node.left, CompoundModel) and
+                        OPERATOR_PRECEDENCE[node.left.op] < oper_order):
+                    left = '({0})'.format(left)
+                if (isinstance(node.right, CompoundModel) and
+                        OPERATOR_PRECEDENCE[node.right.op] < oper_order):
+                    right = '({0})'.format(right)
+
+            operands.append(' '.join((left, node.op, right)))
+
+        return ''.join(operands)
+
+    def _format_repr(self, keywords=[]):
+        """
+        Internal implementation of ``__repr__``.
+
+        This is separated out for ease of use by subclasses that wish to
+        override the default ``__repr__`` while keeping the same basic
+        formatting.
+        """
+
+        # For the sake of familiarity start the output with the standard class
+        # __repr__
+
+        parts = []
+        try:
+            default_keywords = [
+                ('Name', 'CompoundModel'),
+                ('Inputs', self.inputs),
+                ('Outputs', self.outputs),
+            ]
+
+            if self.param_names:
+                default_keywords.append(('Fittable parameters',
+                                         self.param_names))
+
+            for keyword, value in default_keywords + keywords:
+                if value is not None:
+                    parts.append('{0}: {1}'.format(keyword, value))
+
+            return '\n'.join(parts)
+        except Exception:
+            # If any of the above formatting fails fall back on the basic repr
+            # (this is particularly useful in debugging)
+            return parts[0]
+
+    def _format_components(self):
+        return '\n\n'.join('[{0}]: {1!r}'.format(idx, m)
+                                 for idx, m in enumerate(self._leaflist))
+
+    def __repr__(self):
+        if self._parameters_ is None:
+            self.map_parameters()
+        expression = self._format_expression()
+        components = self._format_components()
+        keywords = [
+            ('Expression', expression),
+            ('Components', '\n' + indent(components))
+        ]
+
+        return self._format_repr(keywords=keywords)
+
+    def rename(self, name):
+        self.name = name
+        return self
+
+    @property
+    def isleaf(self):
+        return False
+
+    def has_inverse(self):
+        return self._has_inverse
+
+    @property
+    def bounding_box(self):
+        return self._bounding_box
+
+    @bounding_box.setter
+    def bounding_box(self, bounding_box):
+        self._bounding_box = bounding_box
+
+    @property
+    def inverse(self):
+        if self.has_inverse():
+            if self._user_inverse is not None:
+                return self._user_inverse
+            else:
+                return self._inverse
+        else:
+            raise NotImplementedError("Inverse function not provided")
+
+    @inverse.setter
+    def inverse(self, value):
+        self._inverse = value
+
+    @property
+    def fittable(self):
+        if self._fittable is None:
+            if self._leaflist is None:
+                self.map_parameters()
+            self._fittable = all(m.fittable for m in self._leaflist)
+        return self._fittable
+
+    @property
+    def parameters(self):
+        """
+        A flattened array of all parameter values in all parameter sets.
+
+        Fittable parameters maintain this list and fitters modify it.
+        """
+
+        # Currently the sequence of a model's parameters must be contiguous
+        # within the _parameters array (which may be a view of a larger array,
+        # for example when taking a sub-expression of a compound model), so
+        # the assumption here is reliable:
+        if self.param_names is None:
+            raise RuntimeError("Compound model parameter interface is not "
+                              "supported\n"
+                              "until the .map_parameters() method is called.")
+
+        self._parameters_to_array()
+        start = self._param_metrics[self.param_names[0]]['slice'].start
+        stop = self._param_metrics[self.param_names[-1]]['slice'].stop
+
+        return self._parameters[start:stop]
+
+    @parameters.setter
+    def parameters(self, value):
+        """
+        Assigning to this attribute updates the parameters array rather than
+        replacing it.
+        """
+
+        if self.param_names is None:
+            raise RuntimeError("Compound model parameter interface is not "
+                               "supported\n"
+                               "until the .map_parameters() method is called.")
+
+        start = self._param_metrics[self.param_names[0]]['slice'].start
+        stop = self._param_metrics[self.param_names[-1]]['slice'].stop
+
+        try:
+            value = np.array(value).flatten()
+            self._parameters[start:stop] = value
+        except ValueError as e:
+            raise InputParameterError(
+                "Input parameter values not compatible with the model "
+                "parameters array: {0}".format(e))
+        self._array_to_parameters()
+
+    @inverse.setter
+    def inverse(self, invmodel):
+        if not isinstance(invmodel, Model):
+            raise ValueError("Attempt to assign non model to inverse")
+        self._has_inverse = True
+        self._user_inverse = invmodel
+
+    __add__ =     _model_oper('+')
+    __sub__ =     _model_oper('-')
+    __mul__ =     _model_oper('*')
+    __truediv__ = _model_oper('/')
+    __pow__ =     _model_oper('**')
+    __or__ =      _model_oper('|')
+    __and__ =     _model_oper('&')
+    ###__mod__ =     _model_oper('%')
+
+    def map_parameters(self, namestyle=None):
+        """
+        Map all the constituent model parameters to the compound object,
+        renaming as necessary by appending a suffix number.
+
+        This can be an expensive operation, particularly for a complex
+        expression tree.
+
+        All the corresponding parameter attributes are created that one
+        expects for the Model class.
+
+        The parameter objects that the attributes point to are the same
+        objects as in the constiutent models. Changes made to parameter
+        values to either are seen by both.
+
+        Prior to calling this, none of the associated attributes will
+        exist. This method must be called to make the model usable by
+        fitting engines.
+
+        If oldnames=True, then parameters are named as in the original
+        implementation of compound models.
+        """
+        if self._parameters is not None:
+            # do nothing
+            return
+        if self._leaflist is None:
+            self._make_leaflist()
+        self._parameters_ = OrderedDict()
+        self._param_names = []
+        for lindex, leaf in enumerate(self._leaflist):
+            for param_name in leaf.param_names:
+                param = getattr(leaf, param_name)
+                new_param_name = "{}_{}".format(param_name, lindex)
+                self.__dict__[new_param_name] = param
+                self._parameters_[new_param_name] = param
+                self._param_names.append(new_param_name)
+        self._param_metrics = {}
+        self._initialize_slices()
+        self._initialize_constraints()
+
+    def _initialize_slices(self):
+        # TODO eliminate redundant code with core here and next two methods
+        param_metrics = self._param_metrics
+        total_size = 0
+
+        for name in self.param_names:
+            param = getattr(self, name)
+            value = param.value
+            param_size = np.size(value)
+            param_shape = np.shape(value)
+            param_slice = slice(total_size, total_size + param_size)
+            param_metrics[name] = {}
+            param_metrics[name]['slice'] = param_slice
+            param_metrics[name]['shape'] = param_shape
+            param_metrics[name]['size'] = param_size
+            total_size += param_size
+        self._parameters = np.empty(total_size, dtype=np.float64)
+
+    @property
+    def _constraints(self):
+        return self._constraints_compound
+
+    @_constraints.setter
+    def _constraints(self, value):
+        self._constraints_compound = value
+
+    def _initialize_constraints(self):
+
+        self._constraints = {}
+        for constraint in Parameter.constraints:
+            self._constraints[constraint] = {}
+            # Update with default parameter constraints
+            for param_name in self.param_names:
+                param = getattr(self, param_name)
+                # Parameters don't have all constraint types
+                value = getattr(param, constraint)
+                if value is not None:
+                    self._constraints[constraint][param_name] = value
+
+    def _parameters_to_array(self):
+        # Now set the parameter values (this will also fill
+        # self._parameters)
+        # TODO: This is a bit ugly, but easier to deal with than how this was
+        # done previously.  There's still lots of opportunity for refactoring
+        # though, in particular once we move the _get/set_model_value methods
+        # out of Parameter and into Model (renaming them
+        # _get/set_parameter_value)
+        param_metrics = self._param_metrics
+        for name in self.param_names:
+            param = getattr(self, name)
+            value = param.value
+            if not isinstance(value, np.ndarray):
+                value = np.array([value])
+            self._parameters[param_metrics[name]['slice']] = value.ravel()
+
+    def _array_to_parameters(self):
+        param_metrics = self._param_metrics
+        for name in self.param_names:
+            param = getattr(self, name)
+            param.value = self._parameters[param_metrics[name]['slice']]
+            param.shape = param_metrics[name]['shape']
+
+    @property
+    def _has_units(self):
+        # Returns True if any of the parameters have units
+        for param in self.param_names:
+            if getattr(self, param).unit is not None:
+                return True
+        else:
+            return False
+
+    @property
+    def bounding_box(self):
+        r"""
+        A `tuple` of length `n_inputs` defining the bounding box limits, or
+        `None` for no bounding box.
+
+        The default limits are given by a ``bounding_box`` property or method
+        defined in the class body of a specific model.  If not defined then
+        this property just raises `NotImplementedError` by default (but may be
+        assigned a custom value by a user).  ``bounding_box`` can be set
+        manually to an array-like object of shape ``(model.n_inputs, 2)``. For
+        further usage, see :ref:`bounding-boxes`
+
+        The limits are ordered according to the `numpy` indexing
+        convention, and are the reverse of the model input order,
+        e.g. for inputs ``('x', 'y', 'z')``, ``bounding_box`` is defined:
+
+        * for 1D: ``(x_low, x_high)``
+        * for 2D: ``((y_low, y_high), (x_low, x_high))``
+        * for 3D: ``((z_low, z_high), (y_low, y_high), (x_low, x_high))``
+
+        Examples
+        --------
+
+        Setting the ``bounding_box`` limits for a 1D and 2D model:
+
+        >>> from astropy.modeling.models import Gaussian1D, Gaussian2D
+        >>> model_1d = Gaussian1D()
+        >>> model_2d = Gaussian2D(x_stddev=1, y_stddev=1)
+        >>> model_1d.bounding_box = (-5, 5)
+        >>> model_2d.bounding_box = ((-6, 6), (-5, 5))
+
+        Setting the bounding_box limits for a user-defined 3D `custom_model`:
+
+        >>> from astropy.modeling.models import custom_model
+        >>> def const3d(x, y, z, amp=1):
+        ...    return amp
+        ...
+        >>> Const3D = custom_model(const3d)
+        >>> model_3d = Const3D()
+        >>> model_3d.bounding_box = ((-6, 6), (-5, 5), (-4, 4))
+
+        To reset ``bounding_box`` to its default limits just delete the
+        user-defined value--this will reset it back to the default defined
+        on the class:
+
+        >>> del model_1d.bounding_box
+
+        To disable the bounding box entirely (including the default),
+        set ``bounding_box`` to `None`:
+
+        >>> model_1d.bounding_box = None
+        >>> model_1d.bounding_box  # doctest: +IGNORE_EXCEPTION_DETAIL
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in <module>
+          File "astropy\modeling\core.py", line 980, in bounding_box
+            "No bounding box is defined for this model (note: the "
+        NotImplementedError: No bounding box is defined for this model (note:
+        the bounding box was explicitly disabled for this model; use `del
+        model.bounding_box` to restore the default bounding box, if one is
+        defined for this model).
+        """
+
+        if self._user_bounding_box is not None:
+            if self._user_bounding_box is NotImplemented:
+                raise NotImplementedError(
+                    "No bounding box is defined for this model (note: the "
+                    "bounding box was explicitly disabled for this model; "
+                    "use `del model.bounding_box` to restore the default "
+                    "bounding box, if one is defined for this model).")
+            return self._user_bounding_box
+        elif self._bounding_box is None:
+            raise NotImplementedError(
+                    "No bounding box is defined for this model.")
+        elif isinstance(self._bounding_box, _BoundingBox):
+            # This typically implies a hard-coded bounding box.  This will
+            # probably be rare, but it is an option
+            return self._bounding_box
+        elif isinstance(self._bounding_box, types.MethodType):
+            return self._bounding_box()
+        else:
+            # The only other allowed possibility is that it's a _BoundingBox
+            # subclass, so we call it with its default arguments and return an
+            # instance of it (that can be called to recompute the bounding box
+            # with any optional parameters)
+            # (In other words, in this case self._bounding_box is a *class*)
+            bounding_box = self._bounding_box((), _model=self)()
+            return self._bounding_box(bounding_box, _model=self)
+
+    @bounding_box.setter
+    def bounding_box(self, bounding_box):
+        """
+        Assigns the bounding box limits.
+        """
+
+        if bounding_box is None:
+            cls = None
+            # We use this to explicitly set an unimplemented bounding box (as
+            # opposed to no user bounding box defined)
+            bounding_box = NotImplemented
+        elif (isinstance(self._bounding_box, type) and
+                issubclass(self._bounding_box, _BoundingBox)):
+            cls = self._bounding_box
+        else:
+            cls = _BoundingBox
+
+        if cls is not None:
+            try:
+                bounding_box = cls.validate(self, bounding_box)
+            except ValueError as exc:
+                raise ValueError(exc.args[0])
+
+        self._user_bounding_box = bounding_box
+
+    @bounding_box.deleter
+    def bounding_box(self):
+        self._user_bounding_box = None
+
+    @property
+    def has_user_bounding_box(self):
+        """
+        A flag indicating whether or not a custom bounding_box has been
+        assigned to this model by a user, via assignment to
+        ``model.bounding_box``.
+        """
+
+        return self._user_bounding_box is not None
+
+    @property
+    def fixed(self):
+        """
+        A `dict` mapping parameter names to their fixed constraint.
+        """
+
+        return self._constraints['fixed']
+
+    @property
+    def tied(self):
+        """
+        A `dict` mapping parameter names to their tied constraint.
+        """
+
+        return self._constraints['tied']
+
+    @property
+    def bounds(self):
+        """
+        A `dict` mapping parameter names to their upper and lower bounds as
+        ``(min, max)`` tuples.
+        """
+
+        return self._constraints['bounds']
+
+    def render(self, out=None, coords=None):
+        """
+        Evaluate a model at fixed positions, respecting the ``bounding_box``.
+
+        The key difference relative to evaluating the model directly is that
+        this method is limited to a bounding box if the `Model.bounding_box`
+        attribute is set.
+
+        Parameters
+        ----------
+        out : `numpy.ndarray`, optional
+            An array that the evaluated model will be added to.  If this is not
+            given (or given as ``None``), a new array will be created.
+        coords : array-like, optional
+            An array to be used to translate from the model's input coordinates
+            to the ``out`` array. It should have the property that
+            ``self(coords)`` yields the same shape as ``out``.  If ``out`` is
+            not specified, ``coords`` will be used to determine the shape of
+            the returned array. If this is not provided (or None), the model
+            will be evaluated on a grid determined by `Model.bounding_box`.
+
+        Returns
+        -------
+        out : `numpy.ndarray`
+            The model added to ``out`` if  ``out`` is not ``None``, or else a
+            new array from evaluating the model over ``coords``.
+            If ``out`` and ``coords`` are both `None`, the returned array is
+            limited to the `Model.bounding_box` limits. If
+            `Model.bounding_box` is `None`, ``arr`` or ``coords`` must be
+            passed.
+
+        Raises
+        ------
+        ValueError
+            If ``coords`` are not given and the the `Model.bounding_box` of
+            this model is not set.
+
+        Examples
+        --------
+        :ref:`bounding-boxes`
+        """
+
+        try:
+            bbox = self.bounding_box
+        except NotImplementedError:
+            bbox = None
+
+        ndim = self.n_inputs
+
+        if (coords is None) and (out is None) and (bbox is None):
+            raise ValueError('If no bounding_box is set, '
+                             'coords or out must be input.')
+
+        # for consistent indexing
+        if ndim == 1:
+            if coords is not None:
+                coords = [coords]
+            if bbox is not None:
+                bbox = [bbox]
+
+        if coords is not None:
+            coords = np.asanyarray(coords, dtype=float)
+            # Check dimensions match out and model
+            assert len(coords) == ndim
+            if out is not None:
+                if coords[0].shape != out.shape:
+                    raise ValueError('inconsistent shape of the output.')
+            else:
+                out = np.zeros(coords[0].shape)
+
+        if out is not None:
+            out = np.asanyarray(out, dtype=float)
+            if out.ndim != ndim:
+                raise ValueError('the array and model must have the same '
+                                 'number of dimensions.')
+
+        if bbox is not None:
+            # Assures position is at center pixel, important when usin
+            # add_array.
+            pd = np.array([(np.mean(bb), np.ceil((bb[1] - bb[0]) / 2))
+                           for bb in bbox]).astype(int).T
+            pos, delta = pd
+
+            if coords is not None:
+                sub_shape = tuple(delta * 2 + 1)
+                sub_coords = np.array([extract_array(c, sub_shape, pos)
+                                       for c in coords])
+            else:
+                limits = [slice(p - d, p + d + 1, 1) for p, d in pd.T]
+                sub_coords = np.mgrid[limits]
+
+            sub_coords = sub_coords[::-1]
+
+            if out is None:
+                out = self(*sub_coords)
+            else:
+                try:
+                    out = add_array(out, self(*sub_coords), pos)
+                except ValueError:
+                    raise ValueError(
+                        'The `bounding_box` is larger than the input out in '
+                        'one or more dimensions. Set '
+                        '`model.bounding_box = None`.')
+        else:
+            if coords is None:
+                im_shape = out.shape
+                limits = [slice(i) for i in im_shape]
+                coords = np.mgrid[limits]
+
+            coords = coords[::-1]
+
+            out += self(*coords)
+
+        return out
+
+
+def binary_operation(binoperator, left, right):
+    '''
+    Perform binary operation. Operands may be matching tuples of operands.
+    '''
+    if isinstance(left, tuple) and isinstance(right, tuple):
+        return tuple([binoperator(item[0], item[1])
+                      for item in zip(left, right)])
+    else:
+        return binoperator(left, right)
+
+
+def tree_to_list(tree):
+    '''
+    Walk a tree and return a list of the leaves in order of traversal.
+    '''
+    if not hasattr(tree, 'isleaf'):
+        return [tree]
+    else:
+        return tree_to_list(tree.left, get_oper) + \
+               tree_to_list(tree.right, get_oper)
+
+
+def make_subtree_dict(tree, nodepath, tdict, leaflist):
+    '''
+    Traverse a tree noting each node by a key that indicates all the
+    left/right choices necessary to reach that node. Each key will
+    reference a tuple that contains:
+
+    - reference to the compound model for that node.
+    - left most index contained within that subtree
+       (relative to all indices for the whole tree)
+    - right most index contained within that subtree
+    '''
+    # if this is a leaf, just append it to the leaflist
+    if not hasattr(tree, 'isleaf'):
+        leaflist.append(tree)
+    else:
+        leftmostind = len(leaflist)
+        make_subtree_dict(tree.left, nodepath+'l', tdict, leaflist)
+        make_subtree_dict(tree.right, nodepath+'r', tdict, leaflist)
+        rightmostind = len(leaflist)-1
+        tdict[nodepath] = (tree, leftmostind, rightmostind)
 
 _ORDER_OF_OPERATORS = [('|',), ('&',), ('+', '-'), ('*', '/'), ('**',)]
 OPERATOR_PRECEDENCE = {}
@@ -2226,754 +3291,10 @@ for idx, ops in enumerate(_ORDER_OF_OPERATORS):
         OPERATOR_PRECEDENCE[op] = idx
 del idx, op, ops
 
-
-class _CompoundModelMeta(_ModelMeta):
-    _tree = None
-    _submodels = None
-    _submodel_names = None
-    _nextid = 0
-
-    _param_names = None
-    # _param_map is a mapping of the compound model's generated param names to
-    # the parameters of submodels they are associated with.  The values in this
-    # mapping are (idx, name) tuples were idx is the index of the submodel this
-    # parameter is associated with, and name is the same parameter's name on
-    # the submodel
-    # In principle this will allow compound models to give entirely new names
-    # to parameters that don't have to be the same as their original names on
-    # the submodels, but right now that isn't taken advantage of
-    _param_map = None
-
-    _slice_offset = 0
-    # When taking slices of a compound model, this keeps track of how offset
-    # the first model in the slice is from the first model in the original
-    # compound model it was taken from
-
-    # This just inverts _param_map, swapping keys with values.  This is also
-    # useful to have.
-    _param_map_inverse = None
-    _fittable = None
-
-    _evaluate = None
-
-    def __getitem__(cls, index):
-        index = cls._normalize_index(index)
-
-        if isinstance(index, (int, np.integer)):
-            return cls._get_submodels()[index]
-        else:
-            return cls._get_slice(index.start, index.stop)
-
-    def __getattr__(cls, attr):
-        # Make sure the _tree attribute is set; otherwise we are not looking up
-        # an attribute on a concrete compound model class and should just raise
-        # the AttributeError
-        if cls._tree is not None and attr in cls.param_names:
-            cls._init_param_descriptors()
-            return getattr(cls, attr)
-
-        raise AttributeError(attr)
-
-    def __repr__(cls):
-        if cls._tree is None:
-            # This case is mostly for debugging purposes
-            return cls._format_cls_repr()
-
-        expression = cls._format_expression()
-        components = cls._format_components()
-        keywords = [
-            ('Expression', expression),
-            ('Components', '\n' + indent(components))
-        ]
-
-        return cls._format_cls_repr(keywords=keywords)
-
-    def __dir__(cls):
-        """
-        Returns a list of attributes defined on a compound model, including
-        all of its parameters.
-        """
-
-        basedir = super().__dir__()
-
-        if cls._tree is not None:
-            for name in cls.param_names:
-                basedir.append(name)
-
-            basedir.sort()
-
-        return basedir
-
-    def __reduce__(cls):
-        rv = super().__reduce__()
-
-        if isinstance(rv, tuple):
-            # Delete _evaluate from the members dict
-            with suppress(KeyError):
-                del rv[1][2]['_evaluate']
-
-        return rv
-
-    @property
-    def submodel_names(cls):
-        if cls._submodel_names is None:
-            seen = {}
-            names = []
-            for idx, submodel in enumerate(cls._get_submodels()):
-                name = str(submodel.name)
-                if name in seen:
-                    names.append('{0}_{1}'.format(name, idx))
-                    if seen[name] >= 0:
-                        jdx = seen[name]
-                        names[jdx] = '{0}_{1}'.format(names[jdx], jdx)
-                        seen[name] = -1
-                else:
-                    names.append(name)
-                    seen[name] = idx
-            cls._submodel_names = tuple(names)
-
-        return cls._submodel_names
-
-    @property
-    def param_names(cls):
-        if cls._param_names is None:
-            cls._init_param_names()
-
-        return cls._param_names
-
-    @property
-    def fittable(cls):
-        if cls._fittable is None:
-            cls._fittable = all(m.fittable for m in cls._get_submodels())
-
-        return cls._fittable
-
-    # TODO: Maybe we could use make_function_with_signature for evaluate, but
-    # it's probably not worth it (and I'm not sure what the limit is on number
-    # of function arguments/local variables but we could break that limit for
-    # complicated compound models...
-    def evaluate(cls, *args):
-        if cls._evaluate is None:
-            func = cls._tree.evaluate(BINARY_OPERATORS,
-                                      getter=cls._model_evaluate_getter)[0]
-            cls._evaluate = func
-        inputs = args[:cls.n_inputs]
-        params = iter(args[cls.n_inputs:])
-        result = cls._evaluate(inputs, params)
-        if cls.n_outputs == 1:
-            return result[0]
-        else:
-            return result
-
-    # TODO: This supports creating a new compound model from two existing
-    # compound models (or normal models) and a single operator.  However, it
-    # ought also to be possible to create a new model from an *entire*
-    # expression, represented as a sequence of operators and their operands (or
-    # an exiting ExpressionTree) and build that into a compound model without
-    # creating an intermediate _CompoundModel class for every single operator
-    # in the expression.  This will prove to be a useful optimization in many
-    # cases
-    @classmethod
-    def _from_operator(mcls, operator, left, right, additional_members={}):
-        """
-        Given a Python operator (represented by a string, such as ``'+'``
-        or ``'*'``, and two model classes or instances, return a new compound
-        model that evaluates the given operator on the outputs of the left and
-        right input models.
-
-        If either of the input models are a model *class* (i.e. a subclass of
-        `~astropy.modeling.Model`) then the returned model is a new subclass of
-        `~astropy.modeling.Model` that may be instantiated with any parameter
-        values.  If both input models are *instances* of a model, a new class
-        is still created, but this method returns an *instance* of that class,
-        taking the parameter values from the parameters of the input model
-        instances.
-
-        If given, the ``additional_members`` `dict` may provide additional
-        class members that should be added to the generated
-        `~astropy.modeling.Model` subclass. Some members that are generated by
-        this method should not be provided by ``additional_members``. These
-        include ``_tree``, ``inputs``, ``outputs``, ``linear``,
-        ``standard_broadcasting``, and ``__module__`. This is currently for
-        internal use only.
-        """
-        # Note, currently this only supports binary operators, but could be
-        # easily extended to support unary operators (namely '-') if/when
-        # needed
-        children = []
-        for child in (left, right):
-            if isinstance(child, (_CompoundModelMeta, _CompoundModel)):
-                """
-                Although the original child models were copied we make another
-                copy here to ensure that changes in this child compound model
-                parameters will not propagate to the reuslt, that is
-                cm1 = Gaussian1D(1, 5, .1) + Gaussian1D()
-                cm2 = cm1 | Scale()
-                cm1.amplitude_0 = 100
-                assert(cm2.amplitude_0 == 1)
-                """
-                children.append(copy.deepcopy(child._tree))
-            elif isinstance(child, Model):
-                children.append(ExpressionTree(child.copy(),
-                                               inputs=child.inputs,
-                                               outputs=child.outputs))
-            else:
-                children.append(ExpressionTree(child, inputs=child.inputs, outputs=child.outputs))
-
-        inputs, outputs = mcls._check_inputs_and_outputs(operator, left, right)
-
-        tree = ExpressionTree(operator, left=children[0], right=children[1],
-                              inputs=inputs, outputs=outputs)
-
-        name = str('CompoundModel{0}'.format(_CompoundModelMeta._nextid))
-        _CompoundModelMeta._nextid += 1
-
-        mod = find_current_module(3)
-        if mod:
-            modname = mod.__name__
-        else:
-            modname = '__main__'
-
-        if operator in ('|', '+', '-'):
-            linear = left.linear and right.linear
-        else:
-            # Which is not to say it is *definitely* not linear but it would be
-            # trickier to determine
-            linear = False
-
-        standard_broadcasting = left.standard_broadcasting and right.standard_broadcasting
-
-        # Note: If any other members are added here, make sure to mention them
-        # in the docstring of this method.
-        members = additional_members
-        members.update({
-            '_tree': tree,
-            '_is_dynamic': True,  # See docs for _ModelMeta._is_dynamic
-            'inputs': inputs,
-            'outputs': outputs,
-            'linear': linear,
-            'standard_broadcasting': standard_broadcasting,
-            '__module__': str(modname)})
-
-        new_cls = mcls(name, (_CompoundModel,), members)
-
-        if isinstance(left, Model) and isinstance(right, Model):
-            # Both models used in the operator were already instantiated models,
-            # not model *classes*.  As such it's not particularly useful to return
-            # the class itself, but to instead produce a new instance:
-            instance = new_cls()
-
-            # Workaround for https://github.com/astropy/astropy/issues/3542
-            # TODO: Any effort to restructure the tree-like data structure for
-            # compound models should try to obviate this workaround--if
-            # intermediate compound models are stored in the tree as well then
-            # we can immediately check for custom inverses on sub-models when
-            # computing the inverse
-            instance._user_inverse = mcls._make_user_inverse(
-                    operator, left, right)
-
-            if left._n_models == right._n_models:
-                instance._n_models = left._n_models
-            else:
-                raise ValueError('Model sets must have the same number of '
-                                 'components.')
-
-            return instance
-
-        # Otherwise return the new uninstantiated class itself
-        return new_cls
-
-    @classmethod
-    def _check_inputs_and_outputs(mcls, operator, left, right):
-        # TODO: These aren't the full rules for handling inputs and outputs, but
-        # this will handle most basic cases correctly
-        if operator == '|':
-            inputs = left.inputs
-            outputs = right.outputs
-
-            if left.n_outputs != right.n_inputs:
-                raise ModelDefinitionError(
-                    "Unsupported operands for |: {0} (n_inputs={1}, "
-                    "n_outputs={2}) and {3} (n_inputs={4}, n_outputs={5}); "
-                    "n_outputs for the left-hand model must match n_inputs "
-                    "for the right-hand model.".format(
-                        left.name, left.n_inputs, left.n_outputs, right.name,
-                        right.n_inputs, right.n_outputs))
-        elif operator == '&':
-
-            inputs = combine_labels(left.inputs, right.inputs)
-            outputs = combine_labels(left.outputs, right.outputs)
-
-        else:
-
-            # Without loss of generality
-            inputs = left.inputs
-            outputs = left.outputs
-
-            if (left.n_inputs != right.n_inputs or
-                    left.n_outputs != right.n_outputs):
-                raise ModelDefinitionError(
-                    "Unsupported operands for {0}: {1} (n_inputs={2}, "
-                    "n_outputs={3}) and {4} (n_inputs={5}, n_outputs={6}); "
-                    "models must have the same n_inputs and the same "
-                    "n_outputs for this operator".format(
-                        operator, left.name, left.n_inputs, left.n_outputs,
-                        right.name, right.n_inputs, right.n_outputs))
-
-        return inputs, outputs
-
-    @classmethod
-    def _make_user_inverse(mcls, operator, left, right):
-        """
-        Generates an inverse `Model` for this `_CompoundModel` when either
-        model in the operation has a *custom inverse* that was manually
-        assigned by the user.
-
-        If either model has a custom inverse, and in particular if another
-        `_CompoundModel` has a custom inverse, then none of that model's
-        sub-models should be considered at all when computing the inverse.
-        So in that case we just compute the inverse ahead of time and set
-        it as the new compound model's custom inverse.
-
-        Note, this use case only applies when combining model instances,
-        since model classes don't currently have a notion of a "custom
-        inverse" (though it could probably be supported by overriding the
-        class's inverse property).
-
-        TODO: Consider fixing things so the aforementioned class-based case
-        works as well.  However, for the present purposes this is good enough.
-        """
-
-        if not (operator in ('&', '|') and
-                (left._user_inverse or right._user_inverse)):
-            # These are the only operators that support an inverse right now
-            return None
-
-        try:
-            left_inv = left.inverse
-            right_inv = right.inverse
-        except NotImplementedError:
-            # If either inverse is undefined then just return False; this
-            # means the normal _CompoundModel.inverse routine will fail
-            # naturally anyways, since it requires all sub-models to have
-            # an inverse defined
-            return None
-
-        if operator == '&':
-            return left_inv & right_inv
-        else:
-            return right_inv | left_inv
-
-    # TODO: Perhaps, just perhaps, the post-order (or ???-order) ordering of
-    # leaf nodes is something the ExpressionTree class itself could just know
-    def _get_submodels(cls):
-        # Would make this a lazyproperty but those don't currently work with
-        # type objects
-        if cls._submodels is not None:
-            return cls._submodels
-
-        submodels = [c.value for c in cls._tree.traverse_postorder()
-                     if c.isleaf]
-        cls._submodels = submodels
-        return submodels
-
-    def _init_param_descriptors(cls):
-        """
-        This routine sets up the names for all the parameters on a compound
-        model, including figuring out unique names for those parameters and
-        also mapping them back to their associated parameters of the underlying
-        submodels.
-
-        Setting this all up is costly, and only necessary for compound models
-        that a user will directly interact with.  For example when building an
-        expression like::
-
-            >>> M = (Model1 + Model2) * Model3  # doctest: +SKIP
-
-        the user will generally never interact directly with the temporary
-        result of the subexpression ``(Model1 + Model2)``.  So there's no need
-        to setup all the parameters for that temporary throwaway.  Only once
-        the full expression is built and the user initializes or introspects
-        ``M`` is it necessary to determine its full parameterization.
-        """
-
-        # Accessing cls.param_names will implicitly call _init_param_names if
-        # needed and thus also set up the _param_map; I'm not crazy about that
-        # design but it stands for now
-        for param_name in cls.param_names:
-            submodel_idx, submodel_param = cls._param_map[param_name]
-            submodel = cls[submodel_idx]
-
-            orig_param = getattr(submodel, submodel_param, None)
-
-            if isinstance(submodel, Model):
-                # Take the parameter's default from the model's value for that
-                # parameter
-                default = orig_param.value
-            else:
-                default = orig_param.default
-
-            # Copy constraints
-            constraints = dict((key, getattr(orig_param, key))
-                               for key in Model.parameter_constraints)
-
-            # Note: Parameter.copy() returns a new unbound Parameter, never
-            # a bound Parameter even if submodel is a Model instance (as
-            # opposed to a Model subclass)
-            new_param = orig_param.copy(name=param_name, default=default,
-                                        unit=orig_param.unit,
-                                        **constraints)
-
-            setattr(cls, param_name, new_param)
-
-    def _init_param_names(cls):
-        """
-        This subroutine is solely for setting up the ``param_names`` attribute
-        itself.
-
-        See ``_init_param_descriptors`` for the full parameter setup.
-        """
-
-        # Currently this skips over Model *instances* in the expression tree;
-        # basically these are treated as constants and do not add
-        # fittable/tunable parameters to the compound model.
-        # TODO: I'm not 100% happy with this design, and maybe we need some
-        # interface for distinguishing fittable/settable parameters with
-        # *constant* parameters (which would be distinct from parameters with
-        # fixed constraints since they're permanently locked in place). But I'm
-        # not sure if this is really the best way to treat the issue.
-
-        names = []
-        param_map = {}
-
-        # Start counting the suffix indices to put on parameter names from the
-        # slice_offset.  Usually this will just be zero, but for compound
-        # models that were sliced from another compound model this may be > 0
-        param_suffix = cls._slice_offset
-
-        for idx, model in enumerate(cls._get_submodels()):
-            if not model.param_names:
-                # Skip models that don't have parameters in the numbering
-                # TODO: Reevaluate this if it turns out to be confusing, though
-                # parameter-less models are not very common in practice (there
-                # are a few projections that don't take parameters)
-                continue
-
-            for param_name in model.param_names:
-                # This is sort of heuristic, but we want to check that
-                # model.param_name *actually* returns a Parameter descriptor,
-                # and that the model isn't some inconsistent type that happens
-                # to have a param_names attribute but does not actually
-                # implement settable parameters.
-                # In the future we can probably remove this check, but this is
-                # here specifically to support the legacy compat
-                # _CompositeModel which can be considered a pathological case
-                # in the context of the new framework
-                # if not isinstance(getattr(model, param_name, None),
-                #                  Parameter):
-                #    break
-                name = '{0}_{1}'.format(param_name, param_suffix + idx)
-                names.append(name)
-                param_map[name] = (idx, param_name)
-
-        cls._param_names = tuple(names)
-        cls._param_map = param_map
-        cls._param_map_inverse = dict((v, k) for k, v in param_map.items())
-
-    def _format_expression(cls):
-        # TODO: At some point might be useful to make a public version of this,
-        # albeit with more formatting options
-        return cls._tree.format_expression(OPERATOR_PRECEDENCE)
-
-    def _format_components(cls):
-        return '\n\n'.join('[{0}]: {1!r}'.format(idx, m)
-                           for idx, m in enumerate(cls._get_submodels()))
-
-    def _normalize_index(cls, index):
-        """
-        Converts an index given to __getitem__ to either an integer, or
-        a slice with integer start and stop values.
-
-        If the length of the slice is exactly 1 this converts the index to a
-        simple integer lookup.
-
-        Negative integers are converted to positive integers.
-        """
-
-        def get_index_from_name(name):
-            try:
-                return cls.submodel_names.index(name)
-            except ValueError:
-                raise IndexError(
-                    'Compound model {0} does not have a component named '
-                    '{1}'.format(cls.name, name))
-
-        def check_for_negative_index(index):
-            if index < 0:
-                new_index = len(cls.submodel_names) + index
-                if new_index < 0:
-                    # If still < 0 then this is an invalid index
-                    raise IndexError(
-                            "Model index {0} out of range.".format(index))
-                else:
-                    index = new_index
-
-            return index
-
-        if isinstance(index, str):
-            return get_index_from_name(index)
-        elif isinstance(index, slice):
-            if index.step not in (1, None):
-                # In principle it could be but I can scarcely imagine a case
-                # where it would be useful.  If someone can think of one then
-                # we can enable it.
-                raise ValueError(
-                    "Step not supported for compound model slicing.")
-            start = index.start if index.start is not None else 0
-            stop = (index.stop
-                    if index.stop is not None else len(cls.submodel_names))
-            if isinstance(start, (int, np.integer)):
-                start = check_for_negative_index(start)
-            if isinstance(stop, (int, np.integer)):
-                stop = check_for_negative_index(stop)
-            if isinstance(start, str):
-                start = get_index_from_name(start)
-            if isinstance(stop, str):
-                stop = get_index_from_name(stop) + 1
-            length = stop - start
-
-            if length == 1:
-                return start
-            elif length <= 0:
-                raise ValueError("Empty slice of a compound model.")
-
-            return slice(start, stop)
-        elif isinstance(index, (int, np.integer)):
-            if index >= len(cls.submodel_names):
-                raise IndexError(
-                        "Model index {0} out of range.".format(index))
-
-            return check_for_negative_index(index)
-
-        raise TypeError(
-            'Submodels can be indexed either by their integer order or '
-            'their name (got {0!r}).'.format(index))
-
-    def _get_slice(cls, start, stop):
-        """
-        Return a new model build from a sub-expression of the expression
-        represented by this model.
-
-        Right now this is highly inefficient, as it creates a new temporary
-        model for each operator that appears in the sub-expression.  It would
-        be better if this just built a new expression tree, and the new model
-        instantiated directly from that tree.
-
-        Once tree -> model instantiation is possible this should be fixed to
-        use that instead.
-        """
-
-        members = {'_slice_offset': cls._slice_offset + start}
-        operators = dict((oper, _model_oper(oper, additional_members=members))
-                         for oper in BINARY_OPERATORS)
-
-        return cls._tree.evaluate(operators, start=start, stop=stop)
-
-    @staticmethod
-    def _model_evaluate_getter(idx, model):
-        n_params = len(model.param_names)
-        n_inputs = model.n_inputs
-        n_outputs = model.n_outputs
-
-        # If model is not an instance, we need to instantiate it to make sure
-        # that we can call _validate_input_units (since e.g. input_units can
-        # be an instance property).
-
-        def evaluate_wrapper(model, inputs, param_values):
-            inputs = model._validate_input_units(inputs)
-            outputs = model.evaluate(*inputs, *param_values)
-            if n_outputs == 1:
-                outputs = (outputs,)
-            return model._process_output_units(inputs, outputs)
-
-        if isinstance(model, Model):
-            def f(inputs, params):
-                param_values = tuple(islice(params, n_params))
-                return evaluate_wrapper(model, inputs, param_values)
-        else:
-            # Where previously model was a class, now make an instance
-            def f(inputs, params):
-                param_values = tuple(islice(params, n_params))
-                m = model(*param_values)
-                return evaluate_wrapper(m, inputs, param_values)
-
-        return (f, n_inputs, n_outputs)
-
-
-class _CompoundModel(Model, metaclass=_CompoundModelMeta):
-    fit_deriv = None
-    col_fit_deriv = False
-
-    _submodels = None
-
-    def __str__(self):
-        expression = self._format_expression()
-        components = self._format_components()
-        keywords = [
-            ('Expression', expression),
-            ('Components', '\n' + indent(components))
-        ]
-        return super()._format_str(keywords=keywords)
-
-    def _generate_input_output_units_dict(self, mapping, attr):
-        """
-        This method is used to transform dict or bool settings from
-        submodels into a single dictionary for the composite model,
-        taking into account renaming of input parameters.
-        """
-        d = {}
-        for inp, (model, orig_inp) in mapping.items():
-            mattr = getattr(model, attr)
-            if isinstance(mattr, dict):
-                if orig_inp in mattr:
-                    d[inp] = mattr[orig_inp]
-            elif isinstance(mattr, bool):
-                d[inp] = mattr
-
-        if d:  # Note that if d is empty, we just return None
-            return d
-
-    @property
-    def _supports_unit_fitting(self):
-        return False
-
-    @property
-    def input_units_allow_dimensionless(self):
-        return self._generate_input_output_units_dict(self._tree.inputs_map,
-                                                      'input_units_allow_dimensionless')
-
-    @property
-    def input_units_strict(self):
-        return self._generate_input_output_units_dict(self._tree.inputs_map,
-                                                      'input_units_strict')
-
-    @property
-    def input_units(self):
-        return self._generate_input_output_units_dict(self._tree.inputs_map, 'input_units')
-
-    @property
-    def input_units_equivalencies(self):
-        return self._generate_input_output_units_dict(self._tree.inputs_map,
-                                                      'input_units_equivalencies')
-
-    @property
-    def return_units(self):
-        return self._generate_input_output_units_dict(self._tree.outputs_map,
-                                                      'return_units')
-
-    def __getattr__(self, attr):
-        # This __getattr__ is necessary, because _CompoundModelMeta creates
-        # Parameter descriptors *lazily*--they do not exist in the class
-        # __dict__ until one of them has been accessed.
-        # However, this is at odds with how Python looks up descriptors (see
-        # (https://docs.python.org/3/reference/datamodel.html#invoking-descriptors)
-        # which is to look directly in the class __dict__
-        # This workaround allows descriptors to work correctly when they are
-        # not initially found in the class __dict__
-        value = getattr(self.__class__, attr)
-        if hasattr(value, '__get__'):
-            # Object is a descriptor, so we should really return the result of
-            # its __get__
-            value = value.__get__(self, self.__class__)
-        return value
-
-    def __getitem__(self, index):
-        index = self.__class__._normalize_index(index)
-        model = self.__class__[index]
-
-        if isinstance(index, slice):
-            param_names = model.param_names
-        else:
-            param_map = self.__class__._param_map_inverse
-            param_names = tuple(param_map[index, name]
-                                for name in model.param_names)
-
-        return model._from_existing(self, param_names)
-
-    @property
-    def submodel_names(self):
-        return self.__class__.submodel_names
-
-    @sharedmethod
-    def n_submodels(self):
-        return len(self.submodel_names)
-
-    @property
-    def param_names(self):
-        return self.__class__.param_names
-
-    @property
-    def fittable(self):
-        return self.__class__.fittable
-
-    @sharedmethod
-    def evaluate(self, *args):
-        return self.__class__.evaluate(*args)
-
-    # TODO: The way this works is highly inefficient--the inverse is created by
-    # making a new model for each operator in the compound model, which could
-    # potentially mean creating a large number of temporary throwaway model
-    # classes.  This can definitely be optimized in the future by implementing
-    # a way to construct a single model class from an existing tree
-    @property
-    def inverse(self):
-        def _not_implemented(oper):
-            def _raise(x, y):
-                raise NotImplementedError(
-                    "The inverse is not currently defined for compound "
-                    "models created using the {0} operator.".format(oper))
-            return _raise
-
-        operators = dict((oper, _not_implemented(oper))
-                         for oper in ('+', '-', '*', '/', '**'))
-        operators['&'] = operator.and_
-        # Reverse the order of compositions
-        operators['|'] = lambda x, y: operator.or_(y, x)
-
-        def getter(idx, model):
-            try:
-                # By indexing on self[] this will return an instance of the
-                # model, with all the appropriate parameters set, which is
-                # currently required to return an inverse
-                return self[idx].inverse
-            except NotImplementedError:
-                raise NotImplementedError(
-                    "All models in a composite model must have an inverse "
-                    "defined in order for the composite model to have an "
-                    "inverse.  {0!r} does not have an inverse.".format(model))
-
-        return self._tree.evaluate(operators, getter=getter)
-
-    @sharedmethod
-    def _get_submodels(self):
-        return self.__class__._get_submodels()
-
-    def _parameter_units_for_data_units(self, input_units, output_units):
-        units_for_data = {}
-        for imodel, model in enumerate(self._submodels):
-            units_for_data_sub = model._parameter_units_for_data_units(input_units, output_units)
-            for param_sub in units_for_data_sub:
-                param = self._param_map_inverse[(imodel, param_sub)]
-                units_for_data[param] = units_for_data_sub[param_sub]
-        return units_for_data
-
-    def deepcopy(self):
-        """
-        Return a deep copy of a compound model.
-        """
-        new_model = self.copy()
-        new_model._submodels = [model.deepcopy() for model in self._submodels]
-        return new_model
+try:
+    import asdf_compound
+except ImportError:
+    pass
 
 
 def custom_model(*args, fit_deriv=None, **kwargs):
@@ -3100,8 +3421,8 @@ def _custom_model_wrapper(func, fit_deriv=None):
     else:
         output_names = ('x',)
 
-    params = dict((param.name, Parameter(param.name, default=param.default))
-                  for param in params)
+    params = OrderedDict((param.name, Parameter(param.name,
+                         default=param.default)) for param in params)
 
     mod = find_current_module(2)
     if mod:
@@ -3109,13 +3430,13 @@ def _custom_model_wrapper(func, fit_deriv=None):
     else:
         modname = '__main__'
 
-    members = {
-        '__module__': str(modname),
-        '__doc__': func.__doc__,
-        'inputs': tuple(x.name for x in inputs),
-        'outputs': output_names,
-        'evaluate': staticmethod(func),
-    }
+    members = OrderedDict([
+        ('__module__', str(modname)),
+        ('__doc__', func.__doc__),
+        ('inputs', tuple(x.name for x in inputs)),
+        ('outputs', output_names),
+        ('evaluate', staticmethod(func))]
+    )
 
     if fit_deriv is not None:
         members['fit_deriv'] = staticmethod(fit_deriv)
@@ -3143,7 +3464,8 @@ def render_model(model, arr=None, coords=None):
     Returns
     -------
     array : `numpy.ndarray`
-        The model evaluated on the input ``arr`` or a new array from ``coords``.
+        The model evaluated on the input ``arr`` or a new array from
+        ``coords``.
         If ``arr`` and ``coords`` are both `None`, the returned array is
         limited to the `Model.bounding_box` limits. If
         `Model.bounding_box` is `None`, ``arr`` or ``coords`` must be passed.
@@ -3156,7 +3478,8 @@ def render_model(model, arr=None, coords=None):
     bbox = model.bounding_box
 
     if (coords is None) & (arr is None) & (bbox is None):
-        raise ValueError('If no bounding_box is set, coords or arr must be input.')
+        raise ValueError('If no bounding_box is set,'
+                         'coords or arr must be input.')
 
     # for consistent indexing
     if model.n_inputs == 1:
@@ -3191,7 +3514,8 @@ def render_model(model, arr=None, coords=None):
 
         if coords is not None:
             sub_shape = tuple(delta * 2 + 1)
-            sub_coords = np.array([extract_array(c, sub_shape, pos) for c in coords])
+            sub_coords = np.array([extract_array(c, sub_shape, pos)
+                                   for c in coords])
         else:
             limits = [slice(p - d, p + d + 1, 1) for p, d in pd.T]
             sub_coords = np.mgrid[limits]
@@ -3295,43 +3619,49 @@ def _prepare_outputs_single_model(model, outputs, format_info):
     return tuple(outputs)
 
 
-def _prepare_inputs_model_set(model, params, inputs, n_models, model_set_axis,
+def _prepare_inputs_model_set(model, params, inputs, n_models, model_set_axis_input,
                               **kwargs):
     reshaped = []
     pivots = []
 
+    model_set_axis_param = model.model_set_axis # needed to reshape param
     for idx, _input in enumerate(inputs):
         max_param_shape = ()
-
-        if n_models > 1 and model_set_axis is not False:
+        if n_models > 1 and model_set_axis_input is not False:
             # Use the shape of the input *excluding* the model axis
-            input_shape = (_input.shape[:model_set_axis] +
-                           _input.shape[model_set_axis + 1:])
+            input_shape = (_input.shape[:model_set_axis_input] +
+                           _input.shape[model_set_axis_input + 1:])
         else:
             input_shape = _input.shape
+
         for param in params:
             try:
-                check_broadcast(input_shape, param.shape)
+                check_broadcast(input_shape,
+                                remove_axes_from_shape(param.shape,
+                                                       model_set_axis_param))
             except IncompatibleShapeError:
                 raise ValueError(
                     "Model input argument {0!r} of shape {1!r} cannot be "
                     "broadcast with parameter {2!r} of shape "
                     "{3!r}.".format(model.inputs[idx], input_shape,
-                                    param.name, param.shape))
+                                    param.name,
+                                    remove_axes_from_shape(param.shape,
+                                                           model_set_axis_param)))
 
-            if len(param.shape) > len(max_param_shape):
-                max_param_shape = param.shape
+            if len(param.shape) - 1 > len(max_param_shape):
+                max_param_shape = remove_axes_from_shape(param.shape,
+                                                         model_set_axis_param)
 
         # We've now determined that, excluding the model_set_axis, the
         # input can broadcast with all the parameters
         input_ndim = len(input_shape)
-        if model_set_axis is False:
+        if model_set_axis_input is False:
             if len(max_param_shape) > input_ndim:
                 # Just needs to prepend new axes to the input
                 n_new_axes = 1 + len(max_param_shape) - input_ndim
                 new_axes = (1,) * n_new_axes
                 new_shape = new_axes + _input.shape
-                pivot = model.model_set_axis
+                pivot = model_set_axis_param
             else:
                 pivot = input_ndim - len(max_param_shape)
                 new_shape = (_input.shape[:pivot] + (1,) +
@@ -3347,21 +3677,19 @@ def _prepare_inputs_model_set(model, params, inputs, n_models, model_set_axis,
                 new_input = _input.reshape(new_shape)
             else:
                 pivot = _input.ndim - len(max_param_shape) - 1
-                new_input = np.rollaxis(_input, model_set_axis,
+                new_input = np.rollaxis(_input, model_set_axis_input,
                                         pivot + 1)
-
         pivots.append(pivot)
         reshaped.append(new_input)
 
     if model.n_inputs < model.n_outputs:
-        pivots.extend([model_set_axis] * (model.n_outputs - model.n_inputs))
+        pivots.extend([model_set_axis_input] * (model.n_outputs - model.n_inputs))
 
     return reshaped, (pivots,)
 
 
 def _prepare_outputs_model_set(model, outputs, format_info, model_set_axis):
     pivots = format_info[0]
-
     # If model_set_axis = False was passed then use
     # model._model_set_axis to format the output.
     if model_set_axis is None or model_set_axis is False:
@@ -3372,7 +3700,6 @@ def _prepare_outputs_model_set(model, outputs, format_info, model_set_axis):
         if pivot < output.ndim and pivot != model_set_axis:
             outputs[idx] = np.rollaxis(output, pivot,
                                        model_set_axis)
-
     return tuple(outputs)
 
 
@@ -3395,7 +3722,6 @@ def _validate_input_shapes(inputs, argnames, n_models, model_set_axis,
 
     all_shapes = []
     for idx, _input in enumerate(inputs):
-
         input_shape = np.shape(_input)
         # Ensure that the input's model_set_axis matches the model's
         # n_models
@@ -3437,5 +3763,132 @@ def _validate_input_shapes(inputs, argnames, n_models, model_set_axis,
     return input_broadcast
 
 
+def remove_axis_from_shape(shape, axis):
+    """
+    Given a shape tuple as the first input, construct a new one by  removing
+    that particular axis from the shape. Negative axis numbers are permittted,
+    where the axis is relative to the last axis.
+    """
+    if len(shape) == 0:
+        return shape
+    if axis < 0:
+        axis = len(shape) + axis
+    if axis >= len(shape):
+        axis = len(shape)-1
+    shape = shape[:axis] + shape[axis+1:]
+    if shape == (1,):
+        return ()
+    return shape
+
+
+def remove_axes_from_shape(shape, axis):
+    """
+    Given a shape tuple as the first input, construct a new one by  removing
+    that particular axis from the shape and all preceeding axes. Negative axis
+    numbers are permittted, where the axis is relative to the last axis.
+    """
+    if len(shape) == 0:
+        return shape
+    if axis < 0:
+        axis = len(shape) + axis
+        return shape[:axis] + shape[axis+1:]
+    if axis >= len(shape):
+        axis = len(shape)-1
+    shape = shape[axis+1:]
+    return shape
+
+
+def generic_call(self, *inputs, **kwargs):
+    inputs, format_info = self.prepare_inputs(*inputs, **kwargs)
+    # Check whether any of the inputs are quantities
+    inputs_are_quantity = any([isinstance(i, Quantity) for i in inputs])
+    if isinstance(self, CompoundModel):
+        # CompoundModels do not normally hold parameters at that level
+        parameters = ()
+    else:
+        parameters = self._param_sets(raw=True, units=True)
+    with_bbox = kwargs.pop('with_bounding_box', False)
+    fill_value = kwargs.pop('fill_value', np.nan)
+    bbox = None
+    if with_bbox:
+        try:
+            bbox = self.bounding_box
+        except NotImplementedError:
+            bbox = None
+        if self.n_inputs > 1 and bbox is not None:
+            # bounding_box is in python order -
+            # convert it to the order of the inputs
+            bbox = bbox[::-1]
+        if bbox is None:
+            outputs = self.evaluate(*chain(inputs, parameters))
+        else:
+            if self.n_inputs == 1:
+                bbox = [bbox]
+            # indices where input is outside the bbox
+            # have a value of 1 in ``nan_ind``
+            nan_ind = np.zeros(inputs[0].shape, dtype=bool)
+            for ind, inp in enumerate(inputs):
+                # Pass an ``out`` array so that ``axis_ind``
+                # is array for scalars as well.
+                axis_ind = np.zeros(inp.shape, dtype=bool)
+                axis_ind = np.logical_or(inp < bbox[ind][0],
+                                         inp > bbox[ind][1], out=axis_ind)
+                nan_ind[axis_ind] = 1
+            # get an array with indices of valid inputs
+            valid_ind = np.logical_not(nan_ind).nonzero()
+            # inputs holds only inputs within the bbox
+            args = []
+            for input in inputs:
+                if not input.shape:
+                    # shape is ()
+                    if nan_ind:
+                        outputs = [fill_value for a in args]
+                    else:
+                        args.append(input)
+                else:
+                    args.append(input[valid_ind])
+            valid_result = self.evaluate(*chain(args, parameters))
+            if self.n_outputs == 1:
+                valid_result = [valid_result]
+            # combine the valid results with the ``fill_value`` values
+            # outside the bbox
+            result = [np.zeros(inputs[0].shape) + fill_value
+                      for i in range(len(valid_result))]
+            for ind, r in enumerate(valid_result):
+                if not result[ind].shape:
+                    # shape is ()
+                    result[ind] = r
+                else:
+                    result[ind][valid_ind] = r
+            # format output
+            if self.n_outputs == 1:
+                outputs = np.asarray(result[0])
+            else:
+                outputs = [np.asarray(r) for r in result]
+    else:
+        outputs = self.evaluate(*chain(inputs, parameters))
+    if self.n_outputs == 1:
+        outputs = (outputs,)
+    outputs = self.prepare_outputs(format_info, *outputs, **kwargs)
+
+    outputs = self._process_output_units(inputs, outputs)
+
+    if self.n_outputs == 1:
+        return outputs[0]
+    else:
+        return outputs
+
+def strip_ones(intup):
+    return tuple(item for item in intup if item !=1)
+
+def ismodel(obj):
+    """
+    Returns True if the object is an instance of Model or CompoundModel.
+
+    This should be used instead of isinstance since CompoundModel does
+    not inherit from Model for efficiency reasons.
+    """
+    return isinstance(obj, Model) or isinstance(obj, CompoundModel)
+
+
 copyreg.pickle(_ModelMeta, _ModelMeta.__reduce__)
-copyreg.pickle(_CompoundModelMeta, _CompoundModelMeta.__reduce__)

@@ -11,8 +11,8 @@ from .core import (Fittable1DModel, Fittable2DModel,
                    ModelDefinitionError)
 from .parameters import Parameter, InputParameterError
 from .utils import ellipse_extent
-from astropy import units as u
-from astropy.units import Quantity, UnitsError
+from .. import units as u
+from ..units import Quantity, UnitsError
 
 __all__ = ['AiryDisk2D', 'Moffat1D', 'Moffat2D', 'Box1D', 'Box2D', 'Const1D',
            'Const2D', 'Ellipse2D', 'Disk2D', 'Gaussian1D',
@@ -2269,12 +2269,12 @@ class Moffat1D(Fittable1DModel):
     def fit_deriv(x, amplitude, x_0, gamma, alpha):
         """One dimensional Moffat model derivative with respect to parameters"""
 
-        fac = (1 + (x - x_0) ** 2 / gamma ** 2)
-        d_A = fac ** (-alpha)
-        d_x_0 = (2 * amplitude * alpha * (x - x_0) * d_A / (fac * gamma ** 2))
-        d_gamma = (2 * amplitude * alpha * (x - x_0) ** 2 * d_A /
-                   (fac * gamma ** 3))
-        d_alpha = -amplitude * d_A * np.log(fac)
+        d_A = (1 + (x - x_0) ** 2 / gamma ** 2) ** (-alpha)
+        d_x_0 = (-amplitude * alpha * d_A * (-2 * x + 2 * x_0) /
+                 (gamma ** 2 * d_A ** alpha))
+        d_gamma = (2 * amplitude * alpha * d_A * (x - x_0) ** 2 /
+                   (gamma ** 3 * d_A ** alpha))
+        d_alpha = -amplitude * d_A * np.log(1 + (x - x_0) ** 2 / gamma ** 2)
         return [d_A, d_x_0, d_gamma, d_alpha]
 
     @property
@@ -2349,13 +2349,12 @@ class Moffat2D(Fittable2DModel):
 
         rr_gg = ((x - x_0) ** 2 + (y - y_0) ** 2) / gamma ** 2
         d_A = (1 + rr_gg) ** (-alpha)
-        d_x_0 = (2 * amplitude * alpha * d_A * (x - x_0) /
+        d_x_0 = (-amplitude * alpha * d_A * (-2 * x + 2 * x_0) /
                  (gamma ** 2 * (1 + rr_gg)))
-        d_y_0 = (2 * amplitude * alpha * d_A * (y - y_0) /
+        d_y_0 = (-amplitude * alpha * d_A * (-2 * y + 2 * y_0) /
                  (gamma ** 2 * (1 + rr_gg)))
         d_alpha = -amplitude * d_A * np.log(1 + rr_gg)
-        d_gamma = (2 * amplitude * alpha * d_A * rr_gg /
-                   (gamma ** 3 * (1 + rr_gg)))
+        d_gamma = 2 * amplitude * alpha * d_A * (rr_gg / (gamma * (1 + rr_gg)))
         return [d_A, d_x_0, d_y_0, d_gamma, d_alpha]
 
     @property

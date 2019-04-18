@@ -10,6 +10,7 @@ from astropy import modeling
 from astropy import units as u
 from .basic import TransformType
 
+
 __all__ = ['TabularType']
 
 
@@ -24,25 +25,26 @@ class TabularType(TransformType):
     def from_tree_transform(cls, node, ctx):
         lookup_table = node.pop("lookup_table")
         dim = lookup_table.ndim
+        name = node.get('name', None)
         fill_value = node.pop("fill_value", None)
         if dim == 1:
             # The copy is necessary because the array is memory mapped.
             points = (node['points'][0][:],)
             model = modeling.models.Tabular1D(points=points, lookup_table=lookup_table,
                                               method=node['method'], bounds_error=node['bounds_error'],
-                                              fill_value=fill_value)
+                                              fill_value=fill_value, name=name)
         elif dim == 2:
             points = tuple([p[:] for p in node['points']])
             model = modeling.models.Tabular2D(points=points, lookup_table=lookup_table,
                                               method=node['method'], bounds_error=node['bounds_error'],
-                                              fill_value=fill_value)
+                                              fill_value=fill_value, name=name)
 
         else:
             tabular_class = modeling.models.tabular_model(dim, name)
             points = tuple([p[:] for p in node['points']])
             model = tabular_class(points=points, lookup_table=lookup_table,
                                   method=node['method'], bounds_error=node['bounds_error'],
-                                  fill_value=fill_value)
+                                  fill_value=fill_value, name=name)
 
         return model
 
@@ -59,15 +61,8 @@ class TabularType(TransformType):
 
     @classmethod
     def assert_equal(cls, a, b):
-        if isinstance(a.lookup_table, u.Quantity):
-            assert u.allclose(a.lookup_table, b.lookup_table)
-            assert u.allclose(a.points, b.points)
-            for i in range(len(a.bounding_box)):
-                assert u.allclose(a.bounding_box[i], b.bounding_box[i])
-        else:
-            assert_array_equal(a.lookup_table, b.lookup_table)
-            assert_array_equal(a.points, b.points)
-            assert_array_equal(a.bounding_box, b.bounding_box)
+        assert_array_equal(a.lookup_table, b.lookup_table)
+        assert_array_equal(a.points, b.points)
         assert (a.method == b.method)
         if a.fill_value is None:
             assert b.fill_value is None

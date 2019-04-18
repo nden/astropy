@@ -6,6 +6,7 @@ a clear module/package to live in.
 """
 import abc
 import contextlib
+import copy
 import difflib
 import inspect
 import json
@@ -816,6 +817,25 @@ class OrderedDescriptorContainer(type):
             setattr(cls, descriptor_cls._class_attribute_, instances)
 
         super().__init__(cls_name, bases, members)
+
+def get_parameters(members):
+    """
+    Looks for ordered descriptors in a class definition and
+    copies such definitions in two new class attributes,
+    one being a dictionary of these objects keyed by their
+    attribute names, and the other a simple list of those names.
+
+    """
+    pdict = OrderedDict()
+    for name, obj in members.items():
+        if (not isinstance(obj, OrderedDescriptor)):
+            continue
+        if obj._name_attribute_ is not None:
+            setattr(obj, '_name', name)
+        pdict[name] = obj
+
+    members['_parameter_vals_'] = pdict
+    members['_parameters_'] = pdict.keys()
 
 
 LOCALE_LOCK = threading.Lock()
