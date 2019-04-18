@@ -3365,6 +3365,9 @@ PyWcsprm_set_obsgeo(
     self->x.obsgeo[0] = NPY_NAN;
     self->x.obsgeo[1] = NPY_NAN;
     self->x.obsgeo[2] = NPY_NAN;
+    self->x.obsgeo[3] = NPY_NAN;
+    self->x.obsgeo[4] = NPY_NAN;
+    self->x.obsgeo[5] = NPY_NAN;
     return 0;
   }
 
