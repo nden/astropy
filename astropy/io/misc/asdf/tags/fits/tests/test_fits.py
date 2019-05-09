@@ -52,4 +52,5 @@ def test_backwards_compat():
     def check(asdffile):
         assert isinstance(asdffile['example'], fits.HDUList)
 
-    run_schema_example_test('stsci.edu', 'asdf', 'fits/fits', '1.0.0', check)
+    name = os.path.join('fits', 'fits')
+    run_schema_example_test('stsci.edu', 'asdf', name, '1.0.0', check)
