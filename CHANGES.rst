@@ -69,6 +69,15 @@ astropy.modeling
 - Add ``Tabular1D.inverse`` [#9083]
 
 - ``Model.rename`` was changed to add the ability to rename ``Model.inputs`` and ``Model.outputs``. [#9220]
+- Significant reorganization of the documentation. [#9078]
+
+- Add Tabular1D.inverse [#9083]
+- New function `fix_inputs' to generate new models from others by fixing
+  specific inputs variable values to constants.
+
+- New function ``fix_inputs`` to generate new models from others by fixing
+  specific inputs variable values to constants. [#9135]
+
 
 astropy.nddata
 ^^^^^^^^^^^^^^

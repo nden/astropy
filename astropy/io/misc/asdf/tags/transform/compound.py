@@ -22,7 +22,8 @@ _operator_to_tag_mapping = {
     '/'  : 'divide',
     '**' : 'power',
     '|'  : 'compose',
-    '&'  : 'concatenate'
+    '&'  : 'concatenate',
+    'fix_inputs': 'fix_inputs'
 }
 
 
@@ -33,7 +34,8 @@ _tag_to_method_mapping = {
     'divide'      : '__truediv__',
     'power'       : '__pow__',
     'compose'     : '__or__',
-    'concatenate' : '__and__'
+    'concatenate' : '__and__',
+    'fix_inputs'  : 'fix_inputs'
 }
 
 
@@ -54,10 +56,14 @@ class CompoundType(TransformType):
                 node['forward'][0]._tag))
         right = yamlutil.tagged_tree_to_custom_tree(
             node['forward'][1], ctx)
-        if not isinstance(right, Model):
+        if not isinstance(right, Model) and \
+            not (oper == 'fix_inputs' and isinstance(right, dict)):
             raise TypeError("Unknown model type '{0}'".format(
                 node['forward'][1]._tag))
-        model = getattr(left, oper)(right)
+        if oper == 'fix_inputs':
+            model = CompoundModel('fix_inputs', left, right)
+        else:
+            model = getattr(left, oper)(right)
 
         model = cls._from_tree_base_transform_members(model, node, ctx)
         model.map_parameters()

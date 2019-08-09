@@ -1369,3 +1369,60 @@ This opens up the possibility of essentially arbitrarily complex transformation
 graphs.  Currently the tools do not exist to make it easy to navigate and
 reason about highly complex compound models that use these mappings, but that
 is a possible enhancement for future versions.
+
+
+Model Reduction
+---------------
+
+In order to save much duplication the construction of complex models, it is
+possible to define one complex model that covers all cases where the
+variables that distinguish the models are made part of the model's input
+<<<<<<< HEAD
+variables. The `set_input` function allows defining models derived from
+the more complex one by setting one or more of the inputs to a constant
+value. Examples of this sort of situation arise when working out
+the transformations from detector pixel to RA, Dec, and lambda for
+spectrographs when the slit locations may be moved (e.g., fiber fed or
+=======
+variables. The `fix_inputs` function allows defining models derived from
+the more complex one by setting one or more of the inputs to a constant
+value. Examples of this sort of situation arise when working out
+the transformations from detector pixel to RA, Dec, and lambda for
+spectrographs when the slit locations may be moved (e.g., fiber fed or 
+>>>>>>> add _set_inputs_hook and automatic update of bounding boxes
+commandable slit masks), or different orders may be selected (e.g., Eschelle).
+In the case of order, one may have a function of pixel x, y, spectral_order
+that map into RA, Dec and lambda. Without specifying spectral_order, it is
+ambiguious what RA, Dec and Lambda corresponds to a pixel location. It
+<<<<<<< HEAD
+is usually possible to define a function of all three inputs. Presuming
+this model is `general_transform` then `set_input` may be used to define
+the transform for a specific order as follows:
+
+::
+     >>> order1_transform = set_input(general_transform, {'order': 1})
+
+creates a new compound model that takes only pixel position and generates
+Ra, Dec, and lambda. The `set_input` function can be used to set input
+values by position (0 is the first) or by input variable name, and more
+than one can be set in the dictionary supplied.
+
+If the input model has a bounding_box, the generated model will have the
+bounding for the input coordinate removed.
+=======
+is usually possible to define a function of all three inputs. Presuming 
+this model is `general_transform` then `fix_inputs` may be used to define
+the transform for a specific order as follows:
+
+::
+     order1_transform = fix_inputs(general_transform, {'order': 1})
+
+creates a new compound model that takes only pixel position and generates
+Ra, Dec, and lambda. The `fix_inputs` function can be used to set input
+values by position (0 is the first) or by input variable name, and more
+than one can be set in the dictionary supplied.
+
+If the input model has a bounding_box, the generated model will have the 
+bounding for the input coordinate removed.
+
+>>>>>>> add _set_inputs_hook and automatic update of bounding boxes
