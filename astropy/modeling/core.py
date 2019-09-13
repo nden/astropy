@@ -2372,13 +2372,12 @@ class CompoundModel(Model):
                                               inverse=self)
         elif op == 'fix_inputs':
             if not isinstance(left, Model):
-                raise ValueError('First argument must be an instance of an astropy Model')
+                raise ValueError('First argument to "fix_inputs" must be an instance of an astropy Model.')
             if not isinstance(right, dict):
-                raise ValueError('expecting dictionary for second argument')
+                raise ValueError('Expected a dictionary for second argument of "fix_inputs".')
 
             # Dict keys must match either possible indices
-            # for model on left side,
-            # or names for inputs.
+            # for model on left side, or names for inputs.
             self.n_inputs = left.n_inputs - len(right)
             self.outputs = left.outputs
             self.n_outputs = left.n_outputs
@@ -2389,25 +2388,25 @@ class CompoundModel(Model):
                 if isinstance(key, int):
                     if key >= left.n_inputs or key < 0:
                         raise ValueError(
-                            'substitution key integer value '
-                            'not among possible input choices')
+                            'Substitution key integer value '
+                            'not among possible input choices.')
                     else:
                         if key in input_ind:
                             raise ValueError("Duplicate specification of "
-                                             "same input (index/name)")
+                                             "same input (index/name).")
                         else:
                             input_ind.append(key)
                 elif isinstance(key, str):
                     if key not in left.inputs:
                         raise ValueError(
                             'Substitution key string not among possible '
-                            'input choices')
+                            'input choices.')
                     # Check to see it doesn't match positional
                     # specification.
                     ind = left.inputs.index(key)
                     if ind in input_ind:
                         raise ValueError("Duplicate specification of "
-                                         "same input (index/name)")
+                                         "same input (index/name).")
                     else:
                         input_ind.append(ind)
             # Remove substituted inputs
@@ -2584,7 +2583,7 @@ class CompoundModel(Model):
                     ind = self.inputs.index(kwkey)
                     if ind < len(args):
                         raise ValueError("Keyword argument duplicates "
-                                        "positional value supplied")
+                                        "positional value supplied.")
                     kwind.append(ind)
                     kwval.append(kw[kwkey])
                     del kw[kwkey]
@@ -3298,7 +3297,7 @@ class CompoundModel(Model):
 
     def _fix_input_bounding_box(self, input_ind):
         """
-        If the fix_input operator is used and the model it is applied to
+        If the ``fix_inputs`` operator is used and the model it is applied to
         has a bounding box definition, delete the corresponding inputs from
         that bounding box. This method presumes the bounding_box is not None.
         This also presumes that the list of input indices to remove (i.e.,
@@ -3520,11 +3519,11 @@ def fix_inputs(modelinstance, values):
 
     Parameters
     ----------
-    modelinstance: Model instance. This is the model that one or more of the
+    modelinstance : Model instance. This is the model that one or more of the
         model input values will be fixed to some constant value.
-    values: A dictionary where the key identifies which input to fix
+    values : A dictionary where the key identifies which input to fix
         and its value is the value to fix it at. The key may either be the
-        name of the input or a number reflecting its order in the inputs
+        name of the input or a number reflecting its order in the inputs.
 
     Examples
     --------
@@ -3533,7 +3532,7 @@ def fix_inputs(modelinstance, values):
     >>> g = Gaussian2D(1, 2, 3, 4, 5)
     >>> gv = fix_inputs(g, {0: 2.5})
 
-    results in a 1D function equivalent to Gaussian2D(1, 2, 3, 4, 5)(x=2.5, y)
+    Results in a 1D function equivalent to Gaussian2D(1, 2, 3, 4, 5)(x=2.5, y)
     """
     return CompoundModel('fix_inputs', modelinstance, values)
 
