@@ -1391,7 +1391,7 @@ this model is ``general_transform`` then ``fix_inputs`` may be used to define
 the transform for a specific order as follows:
 
 ::
-     >>> order1_transform = fix_inputs(general_transform, {'order': 1})
+     >>> order1_transform = fix_inputs(general_transform, {'order': 1})  # doctest: +SKIP
 
 creates a new compound model that takes only pixel position and generates
 ``RA``, ``Dec``, and ``lambda``. The ``fix_inputs`` function can be used to set input
