@@ -3,17 +3,17 @@ Fitting Model Sets
 
 Astropy model sets let you fit the same (linear) model to lots of independent
 data sets. It solves the linear equations simultaneously, so can avoid looping.
-But getting the data into the right shape can be a bit tricky. 
+But getting the data into the right shape can be a bit tricky.
 
 The time savings could be worth the effort. In the example below, if we change
 the width*height of the data cube to 500*500 it takes 140 ms on a 2015 MacBook Pro
-to fit the models using model sets. Doing the same fit by looping over the 500*500 models 
+to fit the models using model sets. Doing the same fit by looping over the 500*500 models
 takes 1.5 minutes, more than 600 times slower.
 
 In the example below, we create a 3D data cube where the first dimension is a ramp --
-for example as from non-destructive readouts of an IR detector. So each pixel has a 
-depth along a time axis, and flux that results a total number of counts that is 
-increasing with time. We will be fitting a 1D polynomial vs. time to estimate the 
+for example as from non-destructive readouts of an IR detector. So each pixel has a
+depth along a time axis, and flux that results a total number of counts that is
+increasing with time. We will be fitting a 1D polynomial vs. time to estimate the
 flux in counts/second (the slope of the fit).
 
 First, import the necessary libraries:
@@ -41,15 +41,15 @@ The number of counts in neach pixel is flux*time with the addition of some Gauss
 Create the models and the fitter. We need N=width*height instances of the same linear,
 parametric model (model sets currently only work with linear models and fitters)::
 
-    >>> N = width*height 
+    >>> N = width*height
     >>> line = models.Polynomial1D(degree=1, n_models=N)
     >>> fit = fitting.LinearLSQFitter()
     >>> print("We created %d models" % len(line))
     We created 12 models
 
 We need to get the data to be fit into the right shape. It's not possible to just feed
-the 3D data cube. In this case, the time axis can be one dimensional. 
-The fluxes have to be organized into an array that is of shape `width*height,depth` --  in 
+the 3D data cube. In this case, the time axis can be one dimensional.
+The fluxes have to be organized into an array that is of shape ```width*height,depth`` --  in
 other words, we are reshaping to flatten last two axes and transposing to put them first::
 
     >>> pixels = image.reshape((depth, width*height))
@@ -59,7 +59,7 @@ other words, we are reshaping to flatten last two axes and transposing to put th
     x axis is one dimensional:  (10,)
     y axis is two dimensional, N by len(x):  (12, 10)
 
-Fit the model. It does the looping over the N models implicitly::
+Fit the model. It fits the ``N`` models simultaneously::
 
     >>> new_model = fit(line, x=t, y=y)
     >>> print("We fit %d models" % len(new_model))
@@ -68,7 +68,7 @@ Fit the model. It does the looping over the N models implicitly::
 Fill an array with values computed from the best fit and reshape it to match the original::
 
     >>> best_fit = new_model(t, model_set_axis=False).T.reshape((depth, height, width))
-    print("We reshaped the best fit to dimensions: ", best_fit.shape)
+    >>> print("We reshaped the best fit to dimensions: ", best_fit.shape)
     We reshaped the best fit to dimensions:  (10, 3, 4)
 
 Now inspect the model::
@@ -121,43 +121,43 @@ Plot the fit along a couple of pixels:
 The data and the best fit model are shown together on one plot.
 
 .. plot::
-    
+
     import numpy as np
     import matplotlib.pyplot as plt
     from scipy import stats
     from astropy.modeling import models, fitting
-    
+
     # Set up the shape of the image and create the time axis
     depth,width,height=10,3,4 # Time is along the depth axis
     t = np.arange(depth, dtype=np.float64)*10.  # e.g. readouts every 10 seconds
-    
-    # Make up a flux in each pixel 
+
+    # Make up a flux in each pixel
     fluxes = np.arange(1.*width*height).reshape(height, width)
     # Create the ramps by integrating the fluxes along the time steps
     image = fluxes[np.newaxis, :, :] * t[:, np.newaxis, np.newaxis]
     # Add some Gaussian noise to each sample
     image += stats.norm.rvs(0., image*0.05, size=image.shape)  # Add noise
-    
+
     # Create the models and the fitter
     N = width*height # This is how many instances we need
     line = models.Polynomial1D(degree=1, n_models=N)
     fit = fitting.LinearLSQFitter()
-    
+
     # We need to get the data to be fit into the right shape
     # In this case, the time axis can be one dimensional.
-    # The fluxes have to be organized into an array 
+    # The fluxes have to be organized into an array
     # that is of shape `(width*height, depth)`
     # i.e we are reshaping to flatten last two axes and
     # transposing to put them first.
     pixels = image.reshape((depth, width*height))
     y = pixels.T
-    
+
     # Fit the model. It does the looping over the N models implicitly
     new_model = fit(line, x=t, y=y)
-    
+
     # Fill an array with values computed from the best fit and reshape it to match the original
     best_fit = new_model(t, model_set_axis=False).T.reshape((depth, height, width))
-    
+
 
     # Plot the fit along a couple of pixels
     def plotramp(t, image, best_fit, row, col):
@@ -165,11 +165,10 @@ The data and the best fit model are shown together on one plot.
         plt.plot(t, best_fit[:, row, col], '-', label='fit to pixel %d,%d' % (row, col))
         plt.xlabel('Time')
         plt.ylabel('Counts')
-        plt.legend(loc='upper left')    
+        plt.legend(loc='upper left')
 
 
     plt.figure(figsize=(10, 5))
     plotramp(t, image, best_fit, 1, 1)
     plotramp(t, image, best_fit, 3, 2)
     plt.show()
-
