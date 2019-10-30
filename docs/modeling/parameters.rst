@@ -47,20 +47,51 @@ as properties of `~astropy.modeling.Parameter`, the class which defines all fitt
 parameters, and can be set on individual parameters or on model instances.
 
 `~astropy.modeling.Parameter.fixed` is boolen which indicates
-if the pramater is kept "fixed" during fitting.
+if the pramater is kept "fixed" during fitting. For example, fixing the
+`~astropy.modeling.Gaussian1D.stddev` of a `~astropy.modeling.Gaussian1D` model
+means it will be excluded from the list of fitted parameters::
+
+    >>> from astropy.modeling.models import Gaussian1D
+    >>> g = Gaussian1D(amplitude=10.2, mean=2.3, stddev=1.2)
+    >>> g.stddev.fixed = True
 
 `~astropy.modeling.Parameter.bounds` is a tuple of numbers
 setting minimum and maximum value for a parameter. ``(None, None)`` indicates
 the parameter values are not bound. The ``bounds`` can be set also using the
 `~astropy.modeling.Parameter.min` and
 `~astropy.modeling.Parameter.max` properties. Assigning ``None`` to
-the corresponding property removes the bound on the parameter.
+the corresponding property removes the bound on the parameter. For example, setting
+bounds on the `~astropy.modeling.Gaussian1D.mean` value of a `~astropy.modeling.Gaussian1D`
+model can be done either by setting ``min`` and ``max``::
+
+    >>> g.mean.bounds
+    (None, None)
+    >>> g.mean.min = 2.2
+    >>> g.mean.bounds
+    (2.2, None)
+    >>> g.mean.max = 2.4
+    >>> g.mean.bounds
+    (2.2, 2.4)
+
+or using the ``bounds`` property::
+
+    >>> g.mean.bounds = (2.2, 2.4)
 
 `~astropy.modeling.Parameter.tied` is a user supplied callable
 which takes a model instance and returns a value for the paramter. This constraint
-can be used, for example, to set a ratio between two parameters. 
+can be used, for example, to set a ratio between two parameters. It is most useful
+with setting constraints on compounds models.
 
+Constraints can also be set when the model is initialized. For example::
 
+    >>> g = Gaussian1D(amplitude=10.2, mean=2.3, stddev=1.2,
+    ...                fixed={'stddev': True},
+    ... 	       bounds={'mean': (2.2, 2.4)}
+    ...		       )
+    >>> g.stddev.fixed
+    True
+    >>> g.mean.bounds
+    (2.2, 2.4)
 
 Parameter examples
 ==================
