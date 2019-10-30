@@ -42,21 +42,21 @@ the standard `Numpy broadcasting rules`_.
 Parameter constraints
 =====================
 
-`~astropy.modeling` supports several parameter constraints. They are implemented 
-as properties of `~astropy.modeling.Parameter` and can be set on individual
-parameters or on model instances.
+`astropy.modeling` supports several parameter constraints. They are implemented 
+as properties of `~astropy.modeling.Parameter`, the class which defines all fittable
+parameters, and can be set on individual parameters or on model instances.
 
-`Parameter.fixed <~astropy.modeling.Parameter.fixed>` is boolen which indicates
+`~astropy.modeling.Parameter.fixed` is boolen which indicates
 if the pramater is kept "fixed" during fitting.
 
-`Parameter.bounds <~astropy.modeling.Parameter.fixed>` is a tuple of numbers
+`~astropy.modeling.Parameter.bounds` is a tuple of numbers
 setting minimum and maximum value for a parameter. ``(None, None)`` indicates
-the parameter values are not bound. The ``bounds`` can be set also using
-`Parameter.min <~astropy.modeling.Parameter.min>` and
-`Parameter.max <~astropy.modeling.Parameter.max>`. Assigning ``None`` to
+the parameter values are not bound. The ``bounds`` can be set also using the
+`~astropy.modeling.Parameter.min` and
+`~astropy.modeling.Parameter.max` properties. Assigning ``None`` to
 the corresponding property removes the bound on the parameter.
 
-`Parameter.tied <~astropy.modeling.Parameter.tied>` is a user supplied callable
+`~astropy.modeling.Parameter.tied` is a user supplied callable
 which takes a model instance and returns a value for the paramter. This constraint
 can be used, for example, to set a ratio between two parameters. 
 

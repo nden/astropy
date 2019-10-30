@@ -8,7 +8,7 @@ Fitters support constrained fitting.
   attribute directly on a parameter.
 
   For linear fitters, freezing a polynomial coefficient means that the
-  corresponding term will be subtracted from the data before fitting a
+  corresponding term will be excluded from the data before fitting a
   polynomial without that term to the result. For example, fixing ``c0`` in a
   polynomial model will fit a polynomial with the zero-th order term missing
   to the data minus that constant. However, the fixed coefficient value is
