@@ -83,9 +83,12 @@ The `~astropy.modeling.Parameter.tied` constraint is often useful with :ref:`Com
 In this example we will read a spectrum from a file called ``spec.txt``
 and fit Gaussians to the lines simultaneously while linking the flux of the OIII_1 and OIII_2 lines.
 
+   
 .. plot::
     :include-source:
-       
+
+.. doctest-requires:: scipy
+		      
     >>> import numpy as np
     >>> from astropy.io import ascii
     >>> from astropy.utils.data import get_pkg_data_filename
