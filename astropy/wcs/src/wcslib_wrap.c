@@ -19,6 +19,8 @@
 #include <wcsprintf.h>
 #include <wcsunits.h>
 #include <tab.h>
+#include <wtbarr.h>
+#include <stdio.h>
 
 #include "astropy_wcs/isnan.h"
 #include "astropy_wcs/distortion.h"
@@ -157,6 +159,144 @@ convert_rejections_to_warnings() {
   return status;
 }
 
+
+/***************************************************************************
+ * wtbarr-related global variables and functions                           *
+ ***************************************************************************/
+
+static PyObject *get_wtbarr_data = NULL;
+
+
+void _set_wtbarr_callback(PyObject* callback) {
+  Py_XINCREF(callback);         /* Add a reference to new callback */
+  Py_XDECREF(get_wtbarr_data);  /* Dispose of previous callback */
+  get_wtbarr_data = callback;   /* Remember new callback */
+}
+
+
+int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
+  PyArrayObject *arrayp=NULL;
+  PyObject *result=NULL, *arglist = NULL;
+  int i, naxis;
+  long nelem, *naxes;
+  npy_intp *npy_naxes, item_size;
+  char err_msg[128];
+  npy_double *appayp_data;
+
+  if (hdulist == NULL || hdulist == Py_None) {
+    PyErr_SetString(PyExc_ValueError,
+                    "HDUList is required to retrieve -TAB coordinates "
+                    "and/or indices.");
+    return 0;
+  }
+
+  if (wtb->ndim < 1) {
+    PyErr_SetString(PyExc_ValueError, "Number of dimensions should be positive.");
+    return 0;
+  }
+
+  arglist = Py_BuildValue("(OsiiCsii)", hdulist, wtb->extnam, wtb->extver,
+                          wtb->extlev, wtb->kind, wtb->ttype, wtb->row,
+                          wtb->ndim);
+
+  result = PyObject_CallObject(get_wtbarr_data, arglist);
+  Py_DECREF(arglist);
+
+  arrayp = PyArray_FromAny(result, PyArray_DescrFromType(NPY_DOUBLE), 0, 0,
+                           NPY_ARRAY_CARRAY, NULL);
+
+  if (arrayp == NULL) {
+    PyErr_SetString(PyExc_TypeError, "Unable to convert wtbarr callback "
+                    "result to a numpy.ndarray.");
+    Py_DECREF(result);
+    return 0;
+  }
+
+  if ((PyObject *)arrayp != result) Py_DECREF(result);
+
+  if (!PyArray_Check(arrayp)) {
+    PyErr_SetString(PyExc_TypeError,
+                    "wtbarr callback must return a numpy.ndarray type "
+                    "coordinate or index array.");
+    Py_DECREF(arrayp);
+    return 0;
+  }
+
+  naxis = PyArray_NDIM(arrayp);
+
+  if (naxis == 0) {
+    PyErr_SetString(PyExc_ValueError, "-TAB coordinate or index arrays "
+                    "cannot be 0-dimensional.");
+    Py_DECREF(arrayp);
+    return 0;
+  }
+
+  npy_naxes = PyArray_DIMS(arrayp);
+
+  naxes = (int *) malloc(naxis * sizeof(int));
+  for (i = 0; i < naxis; i++) {
+    naxes[i] = (long) npy_naxes[i];
+  }
+
+  if (naxis != wtb->ndim) {
+    if (wtb->kind == 'c' && wtb->ndim == 2 && naxis == 1) {
+      /* Allow TDIMn to be omitted for degenerate coordinate arrays. */
+      naxis = 2;
+      naxes[1] = 1;
+    } else {
+      sprintf(err_msg,
+              "An array with an unexpected number of axes was "
+              "received from the callback. Expected %d but got %d.",
+              wtb->ndim, (int) naxis);
+      PyErr_SetString(PyExc_ValueError, err_msg);
+      Py_DECREF(arrayp);
+      free(naxes);
+      return 0;
+    }
+  }
+
+  if (wtb->kind == 'c') {
+    /* Coordinate array; calculate the array size. */
+    nelem = naxes[naxis-1];
+    for (i = 0; i < naxis-1; i++) {
+      *(wtb->dimlen + i) = naxes[naxis-2-i];
+      nelem *= naxes[i];
+    }
+  } else {
+    /* Index vector; check length. */
+    if ((nelem = naxes[naxis-1]) != *(wtb->dimlen)) {
+      /* N.B. coordinate array precedes the index vectors. */
+      sprintf(err_msg,
+              "An index array with an unexpected number of dimensions was "
+              "received from the callback. Expected %d but got %d.",
+              *(wtb->dimlen), (int) nelem);
+      PyErr_SetString(PyExc_ValueError, err_msg);
+      Py_DECREF(arrayp);
+      free(naxes);
+      return 0;
+    }
+  }
+
+  free(naxes);
+
+  /* Allocate memory for the array. */
+  if (!(*(wtb->arrayp) = calloc((size_t)nelem, sizeof(double)))) {
+    PyErr_SetString(PyExc_MemoryError, "Out of memory: can't allocate "
+                    "coordinate or index array.");
+    Py_DECREF(arrayp);
+    return 0;
+  }
+
+  /* Read the array from the table. */
+  appayp_data = (npy_double*)PyArray_DATA(arrayp);
+  for (i = 0; i < nelem; i++) {
+    (*wtb->arrayp)[i] = (double)appayp_data[i];
+  }
+
+  Py_DECREF(arrayp);
+  return 1;
+}
+
 /***************************************************************************
  * PyWcsprm methods
  */
@@ -170,9 +310,7 @@ note_change(PyWcsprm* self) {
 }
 
 static void
-PyWcsprm_dealloc(
-    PyWcsprm* self) {
-
+PyWcsprm_dealloc(PyWcsprm* self) {
   wcsfree(&self->x);
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -185,14 +323,8 @@ PyWcsprm_cnew(void) {
 }
 
 static PyObject *
-PyWcsprm_new(
-    PyTypeObject* type,
-    /*@unused@*/ PyObject* args,
-    /*@unused@*/ PyObject* kwds) {
-
-  PyWcsprm* self;
-  self = (PyWcsprm*)type->tp_alloc(type, 0);
-  return (PyObject*)self;
+PyWcsprm_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
+  return (PyObject*)type->tp_alloc(type, 0);
 }
 
 static int
@@ -203,6 +335,7 @@ PyWcsprm_init(
 
   int            status;
   PyObject*      header_obj    = NULL;
+  PyObject*      hdulist       = NULL;
   char *         header        = NULL;
   Py_ssize_t     header_length = 0;
   Py_ssize_t     nkeyrec       = 0;
@@ -219,14 +352,14 @@ PyWcsprm_init(
   int            nreject       = 0;
   int            nwcs          = 0;
   struct wcsprm* wcs           = NULL;
-  int            i             = 0;
+  int            i, j;
   const char*    keywords[]    = {"header", "key", "relax", "naxis", "keysel",
-                                  "colsel", "warnings", NULL};
+                                  "colsel", "warnings", "hdulist", NULL};
 
   if (!PyArg_ParseTupleAndKeywords(
-          args, kwds, "|OsOiiOi:WCSBase.__init__",
+          args, kwds, "|OsOiiOiO:WCSBase.__init__",
           (char **)keywords, &header_obj, &key, &relax_obj, &naxis, &keysel,
-          &colsel, &warnings)) {
+          &colsel, &warnings, &hdulist)) {
     return -1;
   }
 
@@ -442,6 +575,16 @@ PyWcsprm_init(
       return -1;
     }
 
+    wcstab(&self->x);
+    nwcs = 1;
+    for (j = 0; j < self->x.nwtb; j++) {
+      if (!_update_wtbarr_from_hdulist(hdulist, &(self->x.wtb[j]))) {
+        wcsvfree(&nwcs, &self->x);
+        return -1;
+      }
+    }
+    wcsset(&self->x);
+
     note_change(self);
     wcsprm_c2python(&self->x);
     wcsvfree(&nwcs, &wcs);
@@ -449,12 +592,8 @@ PyWcsprm_init(
   }
 }
 
-/*@null@*/ static PyObject*
-PyWcsprm_bounds_check(
-    PyWcsprm* self,
-    PyObject* args,
-    PyObject* kwds) {
-
+static PyObject*
+PyWcsprm_bounds_check(PyWcsprm* self, PyObject* args, PyObject* kwds) {
   unsigned char pix2sky    = 1;
   unsigned char sky2pix    = 1;
   int           bounds     = 0;
@@ -481,17 +620,12 @@ PyWcsprm_bounds_check(
 }
 
 
-/*@null@*/ static PyObject*
-PyWcsprm_copy(
-    PyWcsprm* self) {
-
+static PyObject* PyWcsprm_copy(PyWcsprm* self) {
   PyWcsprm*      copy      = NULL;
   int            status;
 
   copy = PyWcsprm_cnew();
-  if (copy == NULL) {
-    return NULL;
-  }
+  if (copy == NULL) return NULL;
 
   wcsini(0, self->x.naxis, &copy->x);
 
@@ -514,11 +648,7 @@ PyWcsprm_copy(
 }
 
 PyObject*
-PyWcsprm_find_all_wcs(
-    PyObject* __,
-    PyObject* args,
-    PyObject* kwds) {
-
+PyWcsprm_find_all_wcs(PyObject* __, PyObject* args, PyObject* kwds) {
   PyObject*      header_obj    = NULL;
   char *         header        = NULL;
   Py_ssize_t     header_length = 0;
@@ -3773,38 +3903,32 @@ PyWcsprm_set_velref(
   return set_int("velref", value, &self->x.velref);
 }
 
-/* static PyObject* */
-/* PyWcsprm_get_wtb( */
-/*     PyWcsprm* self, */
-/*     /\*@unused@*\/ void* closure) { */
 
-/*   PyObject* result; */
-/*   PyObject* subresult; */
-/*   int i, nwtb; */
+static PyObject* PyWcsprm_get_wtb(PyWcsprm* self, void* closure) {
+  PyObject* list;
+  PyObject* elem;
+  int i, j, nwtb;
 
-/*   nwtb = self->x.nwtb; */
+  nwtb = self->x.nwtb;
 
-/*   result = PyList_New(nwtb); */
-/*   if (result == NULL) { */
-/*     return NULL; */
-/*   } */
+  list = PyList_New(nwtb);
+  if (list == NULL)
+    return NULL;
 
-/*   for (i = 0; i < nwtb; ++i) { */
-/*     subresult = (PyObject *)PyWtbarr_cnew((PyObject *)self, &(self->x.wtb[i])); */
-/*     if (subresult == NULL) { */
-/*       Py_DECREF(result); */
-/*       return NULL; */
-/*     } */
+  for (i = 0; i < nwtb; ++i) {
+    elem = (PyObject *)PyWtbarr_cnew((PyObject *)self, &(self->x.wtb[i]));
+    if (elem == NULL) return NULL;
 
-/*     if (PyList_SetItem(result, i, subresult) == -1) { */
-/*       Py_DECREF(subresult); */
-/*       Py_DECREF(result); */
-/*       return NULL; */
-/*     } */
-/*   } */
+    if (PyList_SetItem(list, i, elem) == -1) {
+      Py_DECREF(elem);
+      Py_DECREF(list);
+      return NULL;
+    }
+  }
 
-/*   return result; */
-/* } */
+  return list;
+}
+
 
 static PyObject*
 PyWcsprm_get_zsource(
@@ -3904,7 +4028,7 @@ static PyGetSetDef PyWcsprm_getset[] = {
   {"velosys", (getter)PyWcsprm_get_velosys, (setter)PyWcsprm_set_velosys, (char *)doc_velosys},
   {"velref", (getter)PyWcsprm_get_velref, (setter)PyWcsprm_set_velref, (char *)doc_velref},
   {"xposure", (getter)PyWcsprm_get_xposure, (setter)PyWcsprm_set_xposure, (char *)doc_xposure},
-  /* {"wtb", (getter)PyWcsprm_get_wtb, NULL, (char *)doc_tab}, */
+  {"wtb", (getter)PyWcsprm_get_wtb, NULL, (char *) NULL},
   {"zsource", (getter)PyWcsprm_get_zsource, (setter)PyWcsprm_set_zsource, (char *)doc_zsource},
   {NULL}
 };

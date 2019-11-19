@@ -49,16 +49,15 @@ make_fancy_dims(PyTabprm* self, int* ndims, npy_intp* dims) {
   return 0;
 }
 
-PyObject** tab_errexc[6];
+PyObject **tab_errexc[6];
 
 static void
 wcslib_tab_to_python_exc(int status) {
   if (status > 0 && status < 6) {
     PyErr_SetString(*tab_errexc[status], tab_errmsg[status]);
   } else {
-    PyErr_SetString(
-        PyExc_RuntimeError,
-        "Unknown error occurred.  Something is seriously wrong.");
+    PyErr_SetString(PyExc_RuntimeError,
+                    "Unknown error occurred. Something is seriously wrong.");
   }
 }
 
@@ -67,25 +66,19 @@ wcslib_tab_to_python_exc(int status) {
  */
 
 static int
-PyTabprm_traverse(
-    PyTabprm* self, visitproc visit, void *arg) {
+PyTabprm_traverse(PyTabprm* self, visitproc visit, void *arg) {
   Py_VISIT(self->owner);
   return 0;
 }
 
 static int
-PyTabprm_clear(
-    PyTabprm* self) {
-
+PyTabprm_clear(PyTabprm* self) {
   Py_CLEAR(self->owner);
-
   return 0;
 }
 
 static void
-PyTabprm_dealloc(
-    PyTabprm* self) {
-
+PyTabprm_dealloc(PyTabprm* self) {
   PyTabprm_clear(self);
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -101,65 +94,42 @@ PyTabprm_cnew(PyObject* wcsprm, struct tabprm* x) {
 }
 
 static int
-PyTabprm_cset(
-    PyTabprm* self) {
-
-  int status = 0;
-
+PyTabprm_cset(PyTabprm* self) {
+  int status;
   status = tabset(self->x);
-
-  if (status == 0) {
-    return 0;
-  } else {
-    wcslib_tab_to_python_exc(status);
-    return -1;
-  }
+  if (status == 0) return 0;
+  wcslib_tab_to_python_exc(status);
+  return -1;
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_set(
-    PyTabprm* self) {
-
-  if (PyTabprm_cset(self)) {
-    return NULL;
-  }
-
+static PyObject*
+PyTabprm_set(PyTabprm* self) {
+  if (PyTabprm_cset(self)) return NULL;
   Py_INCREF(Py_None);
   return Py_None;
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_print_contents(
-    PyTabprm* self) {
-
-  if (PyTabprm_cset(self)) {
-    return NULL;
-  }
+static PyObject*
+PyTabprm_print_contents(PyTabprm* self) {
+  if (PyTabprm_cset(self)) return NULL;
 
   /* This is not thread-safe, but since we're holding onto the GIL,
      we can assume we won't have thread conflicts */
   wcsprintf_set(NULL);
-
   tabprt(self->x);
-
   printf("%s", wcsprintf_buf());
 
   Py_INCREF(Py_None);
   return Py_None;
 }
 
-/*@null@*/ static PyObject*
-PyTabprm___str__(
-    PyTabprm* self) {
-
-  if (PyTabprm_cset(self)) {
-    return NULL;
-  }
+static PyObject*
+PyTabprm___str__(PyTabprm* self) {
+  if (PyTabprm_cset(self)) return NULL;
 
   /* This is not thread-safe, but since we're holding onto the GIL,
      we can assume we won't have thread conflicts */
   wcsprintf_set(NULL);
-
   tabprt(self->x);
 
   return PyUnicode_FromString(wcsprintf_buf());
@@ -169,211 +139,123 @@ PyTabprm___str__(
  * Member getters/setters (properties)
  */
 
-/*@null@*/ static PyObject*
-PyTabprm_get_coord(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
-
+static PyObject*
+PyTabprm_get_coord(PyTabprm* self, void* closure) {
   int ndims;
   npy_intp dims[NPY_MAXDIMS];
 
-  if (is_null(self->x->coord)) {
-    return NULL;
-  }
-
-  if (make_fancy_dims(self, &ndims, dims)) {
-    return NULL;
-  }
+  if (is_null(self->x->coord) || make_fancy_dims(self, &ndims, dims)) return NULL;
 
   return get_double_array("coord", self->x->coord, ndims, dims, (PyObject*)self);
 }
 
-/*@null@*/ static int
-PyTabprm_set_coord(
-    PyTabprm* self,
-    PyObject* value,
-    /*@unused@*/ void* closure) {
-
+static int
+PyTabprm_set_coord(PyTabprm* self, PyObject* value, void* closure) {
   int ndims;
   npy_intp dims[NPY_MAXDIMS];
 
-  if (is_null(self->x->coord)) {
-    return -1;
-  }
-
-  if (make_fancy_dims(self, &ndims, dims)) {
-    return -1;
-  }
+  if (is_null(self->x->coord) || make_fancy_dims(self, &ndims, dims)) return -1;
 
   return set_double_array("coord", value, ndims, dims, self->x->coord);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_crval(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
+static PyObject*
+PyTabprm_get_crval(PyTabprm* self, void* closure) {
+  Py_ssize_t M;
 
-  Py_ssize_t M = 0;
-
-  if (is_null(self->x->crval)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->crval)) return NULL;
   M = (Py_ssize_t)self->x->M;
 
   return get_double_array("crval", self->x->crval, 1, &M, (PyObject*)self);
 }
 
 static int
-PyTabprm_set_crval(
-    PyTabprm* self,
-    PyObject* value,
-    /*@unused@*/ void* closure) {
+PyTabprm_set_crval(PyTabprm* self, PyObject* value, void* closure) {
+  npy_intp M;
 
-  npy_intp M = 0;
-
-  if (is_null(self->x->crval)) {
-    return -1;
-  }
-
+  if (is_null(self->x->crval)) return -1;
   M = (Py_ssize_t)self->x->M;
-
   note_change(self);
 
   return set_double_array("crval", value, 1, &M, self->x->crval);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_delta(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
+static PyObject*
+PyTabprm_get_delta(PyTabprm* self, void* closure) {
+  Py_ssize_t M;
 
-  Py_ssize_t M = 0;
-
-  if (is_null(self->x->delta)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->delta)) return NULL;
   M = (Py_ssize_t)self->x->M;
 
   return get_double_array("delta", self->x->delta, 1, &M, (PyObject*)self);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_extrema(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
-
+static PyObject*
+PyTabprm_get_extrema(PyTabprm* self, void* closure) {
   int ndims;
   npy_intp dims[NPY_MAXDIMS];
 
-  if (is_null(self->x->coord)) {
-    return NULL;
-  }
-
-  if (make_fancy_dims(self, &ndims, dims)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->coord) || make_fancy_dims(self, &ndims, dims)) return NULL;
   dims[ndims-2] = 2;
 
   return get_double_array("extrema", self->x->extrema, ndims, dims, (PyObject*)self);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_K(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
+static PyObject*
+PyTabprm_get_K(PyTabprm* self, void* closure) {
+  Py_ssize_t M;
 
-  Py_ssize_t M = 0;
-
-  if (is_null(self->x->K)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->K)) return NULL;
   M = (Py_ssize_t)self->x->M;
 
   return get_int_array("K", self->x->K, 1, &M, (PyObject*)self);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_M(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
-
+static PyObject*
+PyTabprm_get_M(PyTabprm* self, void* closure) {
   return get_int("M", self->x->M);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_map(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
+static PyObject*
+PyTabprm_get_map(PyTabprm* self, void* closure) {
+  Py_ssize_t M;
 
-  Py_ssize_t M = 0;
-
-  if (is_null(self->x->map)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->map)) return NULL;
   M = (Py_ssize_t)self->x->M;
 
   return get_int_array("map", self->x->map, 1, &M, (PyObject*)self);
 }
 
 static int
-PyTabprm_set_map(
-    PyTabprm* self,
-    PyObject* value,
-    /*@unused@*/ void* closure) {
+PyTabprm_set_map(PyTabprm* self, PyObject* value, void* closure) {
+  npy_intp M;
 
-  npy_intp M = 0;
-
-  if (is_null(self->x->map)) {
-    return -1;
-  }
-
+  if (is_null(self->x->map)) return -1;
   M = (Py_ssize_t)self->x->M;
-
   note_change(self);
 
   return set_int_array("map", value, 1, &M, self->x->map);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_nc(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
-
+static PyObject* PyTabprm_get_nc(PyTabprm* self, void* closure) {
   return get_int("nc", self->x->nc);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_p0(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
+static PyObject*
+PyTabprm_get_p0(PyTabprm* self, void* closure) {
+  Py_ssize_t M;
 
-  Py_ssize_t M = 0;
-
-  if (is_null(self->x->p0)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->p0)) return NULL;
   M = (Py_ssize_t)self->x->M;
 
   return get_int_array("p0", self->x->p0, 1, &M, (PyObject*)self);
 }
 
-/*@null@*/ static PyObject*
-PyTabprm_get_sense(
-    PyTabprm* self,
-    /*@unused@*/ void* closure) {
+static PyObject*
+PyTabprm_get_sense(PyTabprm* self, void* closure) {
+  Py_ssize_t M;
 
-  Py_ssize_t M = 0;
-
-  if (is_null(self->x->sense)) {
-    return NULL;
-  }
-
+  if (is_null(self->x->sense)) return NULL;
   M = (Py_ssize_t)self->x->M;
 
   return get_int_array("sense", self->x->sense, 1, &M, (PyObject*)self);
@@ -413,7 +295,7 @@ PyTypeObject PyTabprmType = {
   0,                            /*tp_getattr*/
   0,                            /*tp_setattr*/
   0,                            /*tp_compare*/
-  (reprfunc)PyTabprm___str__,   /*tp_repr*/
+  0,                            /*tp_repr*/
   0,                            /*tp_as_number*/
   0,                            /*tp_as_sequence*/
   0,                            /*tp_as_mapping*/
@@ -444,13 +326,10 @@ PyTypeObject PyTabprmType = {
   0,                            /* tp_new */
 };
 
-int
-_setup_tabprm_type(
-    PyObject* m) {
 
-  if (PyType_Ready(&PyTabprmType) < 0) {
-    return -1;
-  }
+int
+_setup_tabprm_type(PyObject* m) {
+  if (PyType_Ready(&PyTabprmType) < 0) return -1;
 
   Py_INCREF(&PyTabprmType);
 

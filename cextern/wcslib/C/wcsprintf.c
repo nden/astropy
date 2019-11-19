@@ -65,6 +65,7 @@ int wcsprintf_set(FILE *wcsout)
     /* Reset pointer to the start of the buffer. */
     wcsprintf_bufp = wcsprintf_buff;
     *wcsprintf_bufp = '\0';
+    wcsprintf_file = 0x0;
   }
 
   return 0;
