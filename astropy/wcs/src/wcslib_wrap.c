@@ -177,8 +177,7 @@ void _set_wtbarr_callback(PyObject* callback) {
 int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   PyArrayObject *arrayp=NULL;
   PyObject *result=NULL, *arglist = NULL;
-  int i, naxis;
-  long nelem, *naxes;
+  int i, naxis, nelem, *naxes;
   npy_intp *npy_naxes, item_size;
   char err_msg[128];
   npy_double *appayp_data;
@@ -233,9 +232,15 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
 
   npy_naxes = PyArray_DIMS(arrayp);
 
-  naxes = (int *) malloc(naxis * sizeof(int));
+  if (!(naxes = calloc((size_t)naxis, sizeof(int)))) {
+    PyErr_SetString(PyExc_MemoryError, "Out of memory: can't allocate "
+                    "'naxis' array.");
+    Py_DECREF(arrayp);
+    return 0;
+  }
+
   for (i = 0; i < naxis; i++) {
-    naxes[i] = (long) npy_naxes[i];
+    naxes[i] = (int) npy_naxes[i];
   }
 
   if (naxis != wtb->ndim) {
@@ -280,7 +285,7 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   free(naxes);
 
   /* Allocate memory for the array. */
-  if (!(*(wtb->arrayp) = calloc((size_t)nelem, sizeof(double)))) {
+  if (!((*wtb->arrayp) = calloc((size_t)nelem, sizeof(double)))) {
     PyErr_SetString(PyExc_MemoryError, "Out of memory: can't allocate "
                     "coordinate or index array.");
     Py_DECREF(arrayp);
@@ -351,6 +356,7 @@ PyWcsprm_init(
   int            warnings      = 1;
   int            nreject       = 0;
   int            nwcs          = 0;
+  int            nwcsx         = 1;
   struct wcsprm* wcs           = NULL;
   int            i, j;
   const char*    keywords[]    = {"header", "key", "relax", "naxis", "keysel",
@@ -576,10 +582,9 @@ PyWcsprm_init(
     }
 
     wcstab(&self->x);
-    nwcs = 1;
     for (j = 0; j < self->x.nwtb; j++) {
       if (!_update_wtbarr_from_hdulist(hdulist, &(self->x.wtb[j]))) {
-        wcsvfree(&nwcs, &self->x);
+        wcsvfree(&nwcsx, &self->x);
         return -1;
       }
     }
