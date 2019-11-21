@@ -20,7 +20,6 @@ class SimModelTAB:
         self.cdelt = cdelt
         self.pc = pc
 
-
     def fwd_eval(self, xy):
         xb = 1 + self.nx // 3
         px = np.array([1, xb, xb, self.nx + 1])
@@ -51,7 +50,6 @@ class SimModelTAB:
         dec = cy[0] + cfy * (cy[1] - cy[0])
 
         return np.dstack([ra, dec])[0]
-
 
     @property
     def hdulist(self):

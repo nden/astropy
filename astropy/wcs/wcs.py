@@ -116,7 +116,6 @@ if _wcs is not None:
 
         return np.ascontiguousarray(arr, dtype=np.double)
 
-
     _wcs.set_wtbarr_fitsio_callback(_load_tab_bintable)
 
 else:
@@ -436,7 +435,6 @@ class WCS(FITSWCSAPIMixin, WCSBase):
             if not (fobj is None or isinstance(fobj, fits.HDUList)):
                 raise AssertionError("'fobj' must be either None or an "
                                      "astropy.io.fits.HDUList object.")
-
 
             try:
                 tmp_header = fits.Header.fromstring(header_string)
