@@ -63,7 +63,7 @@ PyWtbarr* PyWtbarr_cnew(PyObject* wcsprm, struct wtbarr* x) {
 
 
 static void wtbarrprt(const struct wtbarr *wtb) {
-  int i, m, nd, ndim;
+  int i, nd, ndim;
 
   if (wtb == 0x0) return;
 
@@ -158,7 +158,6 @@ static PyObject* PyWtbarr_get_ttype(PyWtbarr* self, void* closure) {
 
 
 static PyObject* PyWtbarr_get_kind(PyWtbarr* self, void* closure) {
-  if (is_null(self->x->kind)) return NULL;
   return PyUnicode_FromFormat("%c", self->x->kind);
 }
 

@@ -178,7 +178,7 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   PyArrayObject *arrayp=NULL;
   PyObject *result=NULL, *arglist = NULL;
   int i, naxis, nelem, *naxes;
-  npy_intp *npy_naxes, item_size;
+  npy_intp *npy_naxes;
   char err_msg[128];
   npy_double *appayp_data;
 
@@ -201,8 +201,8 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   result = PyObject_CallObject(get_wtbarr_data, arglist);
   Py_DECREF(arglist);
 
-  arrayp = PyArray_FromAny(result, PyArray_DescrFromType(NPY_DOUBLE), 0, 0,
-                           NPY_ARRAY_CARRAY, NULL);
+  arrayp = (PyArrayObject *)PyArray_FromAny(result,
+      PyArray_DescrFromType(NPY_DOUBLE), 0, 0, NPY_ARRAY_CARRAY, NULL);
 
   if (arrayp == NULL) {
     PyErr_SetString(PyExc_TypeError, "Unable to convert wtbarr callback "
@@ -356,7 +356,6 @@ PyWcsprm_init(
   int            warnings      = 1;
   int            nreject       = 0;
   int            nwcs          = 0;
-  int            nwcsx         = 1;
   struct wcsprm* wcs           = NULL;
   int            i, j;
   const char*    keywords[]    = {"header", "key", "relax", "naxis", "keysel",
@@ -584,7 +583,7 @@ PyWcsprm_init(
     wcstab(&self->x);
     for (j = 0; j < self->x.nwtb; j++) {
       if (!_update_wtbarr_from_hdulist(hdulist, &(self->x.wtb[j]))) {
-        wcsvfree(&nwcsx, &self->x);
+        wcsfree(&self->x);
         return -1;
       }
     }
@@ -3912,7 +3911,7 @@ PyWcsprm_set_velref(
 static PyObject* PyWcsprm_get_wtb(PyWcsprm* self, void* closure) {
   PyObject* list;
   PyObject* elem;
-  int i, j, nwtb;
+  int i, nwtb;
 
   nwtb = self->x.nwtb;
 
