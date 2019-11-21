@@ -41,9 +41,7 @@ PyObject* PyWcsprm_set_wtbarr_fitsio_callback(PyObject *dummy, PyObject *args) {
         }
         _set_wtbarr_callback(callback);
 
-        /* Boilerplate to return "None" */
-        Py_INCREF(Py_None);
-        return Py_None;
+        Py_RETURN_NONE;
     }
     return NULL;
 }

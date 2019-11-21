@@ -179,7 +179,6 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   PyObject *result=NULL, *arglist = NULL;
   int i, naxis, nelem, *naxes;
   npy_intp *npy_naxes;
-  char err_msg[128];
   npy_double *appayp_data;
 
   if (hdulist == NULL || hdulist == Py_None) {
@@ -194,12 +193,11 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
     return 0;
   }
 
-  arglist = Py_BuildValue("(OsiiCsii)", hdulist, wtb->extnam, wtb->extver,
-                          wtb->extlev, wtb->kind, wtb->ttype, wtb->row,
-                          wtb->ndim);
-
-  result = PyObject_CallObject(get_wtbarr_data, arglist);
-  Py_DECREF(arglist);
+  result = PyObject_CallFunction(get_wtbarr_data, "(OsiiCsii)", hdulist,
+      wtb->extnam, wtb->extver, wtb->extlev, wtb->kind, wtb->ttype, wtb->row,
+      wtb->ndim);
+      
+  if (result == NULL) return 0;
 
   arrayp = (PyArrayObject *)PyArray_FromAny(result,
       PyArray_DescrFromType(NPY_DOUBLE), 0, 0, NPY_ARRAY_CARRAY, NULL);
@@ -249,11 +247,10 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
       naxis = 2;
       naxes[1] = 1;
     } else {
-      sprintf(err_msg,
-              "An array with an unexpected number of axes was "
-              "received from the callback. Expected %d but got %d.",
-              wtb->ndim, (int) naxis);
-      PyErr_SetString(PyExc_ValueError, err_msg);
+      PyErr_Format(PyExc_ValueError,
+          "An array with an unexpected number of axes was "
+          "received from the callback. Expected %d but got %d.",
+          wtb->ndim, (int) naxis);
       Py_DECREF(arrayp);
       free(naxes);
       return 0;
@@ -271,11 +268,10 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
     /* Index vector; check length. */
     if ((nelem = naxes[naxis-1]) != *(wtb->dimlen)) {
       /* N.B. coordinate array precedes the index vectors. */
-      sprintf(err_msg,
-              "An index array with an unexpected number of dimensions was "
-              "received from the callback. Expected %d but got %d.",
-              *(wtb->dimlen), (int) nelem);
-      PyErr_SetString(PyExc_ValueError, err_msg);
+      PyErr_Format(PyExc_ValueError,
+          "An index array with an unexpected number of dimensions was "
+          "received from the callback. Expected %d but got %d.",
+          *(wtb->dimlen), (int) nelem);
       Py_DECREF(arrayp);
       free(naxes);
       return 0;
@@ -3916,8 +3912,10 @@ static PyObject* PyWcsprm_get_wtb(PyWcsprm* self, void* closure) {
   nwtb = self->x.nwtb;
 
   list = PyList_New(nwtb);
-  if (list == NULL)
+  if (list == NULL) {
+    Py_DECREF(list);
     return NULL;
+  }
 
   for (i = 0; i < nwtb; ++i) {
     elem = (PyObject *)PyWtbarr_cnew((PyObject *)self, &(self->x.wtb[i]));

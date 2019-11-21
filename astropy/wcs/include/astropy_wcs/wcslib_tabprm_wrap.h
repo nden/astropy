@@ -17,7 +17,8 @@ typedef struct {
   PyObject* owner;
 } PyTabprm;
 
-PyTabprm* PyTabprm_cnew(PyObject* wcsprm, struct tabprm* x);
+PyTabprm*
+PyTabprm_cnew(PyObject* wcsprm, struct tabprm* x);
 
 int _setup_tabprm_type(PyObject* m);
 

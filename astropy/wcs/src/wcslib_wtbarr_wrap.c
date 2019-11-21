@@ -1,7 +1,3 @@
-/*
- Author: Mihai Cara
-*/
-
 #define NO_IMPORT_ARRAY
 
 #include "astropy_wcs/wcslib_wtbarr_wrap.h"
@@ -55,6 +51,7 @@ static void PyWtbarr_dealloc(PyWtbarr* self) {
 PyWtbarr* PyWtbarr_cnew(PyObject* wcsprm, struct wtbarr* x) {
   PyWtbarr* self;
   self = (PyWtbarr*)(&PyWtbarrType)->tp_alloc(&PyWtbarrType, 0);
+  if (self == NULL) return NULL;
   self->x = x;
   Py_INCREF(wcsprm);
   self->owner = wcsprm;
@@ -95,9 +92,7 @@ static PyObject* PyWtbarr_print_contents(PyWtbarr* self) {
   wcsprintf_set(NULL);
   wtbarrprt(self->x);
   printf("%s", wcsprintf_buf());
-
-  Py_INCREF(Py_None);
-  return Py_None;
+  Py_RETURN_NONE;
 }
 
 
