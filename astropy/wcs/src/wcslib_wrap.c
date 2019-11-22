@@ -202,14 +202,13 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   arrayp = (PyArrayObject *)PyArray_FromAny(result,
       PyArray_DescrFromType(NPY_DOUBLE), 0, 0, NPY_ARRAY_CARRAY, NULL);
 
+  Py_DECREF(result);
+
   if (arrayp == NULL) {
     PyErr_SetString(PyExc_TypeError, "Unable to convert wtbarr callback "
                     "result to a numpy.ndarray.");
-    Py_DECREF(result);
     return 0;
   }
-
-  Py_DECREF(result);
 
   if (!PyArray_Check(arrayp)) {
     PyErr_SetString(PyExc_TypeError,
@@ -244,7 +243,6 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
           "received from the callback. Expected %d but got %d.",
           wtb->ndim, (int) naxis);
       Py_DECREF(arrayp);
-      free(naxes);
       return 0;
     }
   }
@@ -265,7 +263,6 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
           "received from the callback. Expected %d but got %d.",
           *(wtb->dimlen), (int) nelem);
       Py_DECREF(arrayp);
-      free(naxes);
       return 0;
     }
   }
@@ -301,7 +298,9 @@ note_change(PyWcsprm* self) {
 }
 
 static void
-PyWcsprm_dealloc(PyWcsprm* self) {
+PyWcsprm_dealloc(
+    PyWcsprm* self) {
+
   wcsfree(&self->x);
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -314,8 +313,14 @@ PyWcsprm_cnew(void) {
 }
 
 static PyObject *
-PyWcsprm_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
-  return (PyObject*)type->tp_alloc(type, 0);
+PyWcsprm_new(
+    PyTypeObject* type,
+    /*@unused@*/ PyObject* args,
+    /*@unused@*/ PyObject* kwds) {
+
+  PyWcsprm* self;
+  self = (PyWcsprm*)type->tp_alloc(type, 0);
+  return (PyObject*)self;
 }
 
 static int
@@ -582,8 +587,12 @@ PyWcsprm_init(
   }
 }
 
-static PyObject*
-PyWcsprm_bounds_check(PyWcsprm* self, PyObject* args, PyObject* kwds) {
+/*@null@*/ static PyObject*
+PyWcsprm_bounds_check(
+    PyWcsprm* self,
+    PyObject* args,
+    PyObject* kwds) {
+
   unsigned char pix2sky    = 1;
   unsigned char sky2pix    = 1;
   int           bounds     = 0;
@@ -610,12 +619,17 @@ PyWcsprm_bounds_check(PyWcsprm* self, PyObject* args, PyObject* kwds) {
 }
 
 
-static PyObject* PyWcsprm_copy(PyWcsprm* self) {
+/*@null@*/ static PyObject*
+PyWcsprm_copy(
+    PyWcsprm* self) {
+
   PyWcsprm*      copy      = NULL;
   int            status;
 
   copy = PyWcsprm_cnew();
-  if (copy == NULL) return NULL;
+  if (copy == NULL) {
+    return NULL;
+  }
 
   wcsini(0, self->x.naxis, &copy->x);
 
@@ -638,7 +652,11 @@ static PyObject* PyWcsprm_copy(PyWcsprm* self) {
 }
 
 PyObject*
-PyWcsprm_find_all_wcs(PyObject* __, PyObject* args, PyObject* kwds) {
+PyWcsprm_find_all_wcs(
+    PyObject* __,
+    PyObject* args,
+    PyObject* kwds) {
+
   PyObject*      header_obj    = NULL;
   char *         header        = NULL;
   Py_ssize_t     header_length = 0;
@@ -3902,16 +3920,16 @@ static PyObject* PyWcsprm_get_wtb(PyWcsprm* self, void* closure) {
   nwtb = self->x.nwtb;
 
   list = PyList_New(nwtb);
-  if (list == NULL) {
-    Py_DECREF(list);
-    return NULL;
-  }
+  if (list == NULL) return NULL;
 
   for (i = 0; i < nwtb; ++i) {
     elem = (PyObject *)PyWtbarr_cnew((PyObject *)self, &(self->x.wtb[i]));
-    if (elem == NULL) return NULL;
+    if (elem == NULL) {
+      Py_DECREF(list);
+      return NULL;
+    }
 
-    if (PyList_SetItem(list, i, elem) == -1) {
+    if (PyList_Append(list, elem) == -1) {
       Py_DECREF(elem);
       Py_DECREF(list);
       return NULL;
