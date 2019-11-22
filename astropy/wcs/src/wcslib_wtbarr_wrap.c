@@ -73,14 +73,14 @@ static void wtbarrprt(const struct wtbarr *wtb) {
   wcsprintf(" ttype: %s\n", wtb->ttype);
   wcsprintf("   row: %ld\n", wtb->row);
   wcsprintf("  ndim: %d\n", wtb->ndim);
-  wcsprintf("dimlen: %#lx\n", (unsigned long int)wtb->dimlen);
+  wcsprintf("dimlen: %p\n", (void *)wtb->dimlen);
 
   ndim = wtb->ndim - (int)(wtb->kind == 'c');
   nd = 1 + (int) log10(ndim ? ndim : 1);
   for (i = 0; i < ndim; i++) {
     wcsprintf("        %*d:   %d\n", nd, i, wtb->dimlen[i]);
   }
-  wcsprintf("arrayp: %#lx\n", (unsigned long int)wtb->arrayp);
+  wcsprintf("arrayp: %p\n", (void *)wtb->arrayp);
 
   return;
 }

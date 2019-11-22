@@ -176,7 +176,7 @@ void _set_wtbarr_callback(PyObject* callback) {
 
 int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   PyArrayObject *arrayp=NULL;
-  PyObject *result=NULL, *arglist = NULL;
+  PyObject *result=NULL;
   int i, naxis, nelem, naxes[NPY_MAXDIMS];
   npy_intp *npy_naxes;
   npy_double *appayp_data;
