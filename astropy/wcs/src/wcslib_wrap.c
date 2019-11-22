@@ -177,7 +177,7 @@ void _set_wtbarr_callback(PyObject* callback) {
 int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   PyArrayObject *arrayp=NULL;
   PyObject *result=NULL, *arglist = NULL;
-  int i, naxis, nelem, *naxes;
+  int i, naxis, nelem, naxes[NPY_MAXDIMS];
   npy_intp *npy_naxes;
   npy_double *appayp_data;
 
@@ -196,7 +196,7 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   result = PyObject_CallFunction(get_wtbarr_data, "(OsiiCsii)", hdulist,
       wtb->extnam, wtb->extver, wtb->extlev, wtb->kind, wtb->ttype, wtb->row,
       wtb->ndim);
-      
+
   if (result == NULL) return 0;
 
   arrayp = (PyArrayObject *)PyArray_FromAny(result,
@@ -209,7 +209,7 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
     return 0;
   }
 
-  if ((PyObject *)arrayp != result) Py_DECREF(result);
+  Py_DECREF(result);
 
   if (!PyArray_Check(arrayp)) {
     PyErr_SetString(PyExc_TypeError,
@@ -229,14 +229,6 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   }
 
   npy_naxes = PyArray_DIMS(arrayp);
-
-  if (!(naxes = calloc((size_t)naxis, sizeof(int)))) {
-    PyErr_SetString(PyExc_MemoryError, "Out of memory: can't allocate "
-                    "'naxis' array.");
-    Py_DECREF(arrayp);
-    return 0;
-  }
-
   for (i = 0; i < naxis; i++) {
     naxes[i] = (int) npy_naxes[i];
   }
@@ -277,8 +269,6 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
       return 0;
     }
   }
-
-  free(naxes);
 
   /* Allocate memory for the array. */
   if (!((*wtb->arrayp) = calloc((size_t)nelem, sizeof(double)))) {
