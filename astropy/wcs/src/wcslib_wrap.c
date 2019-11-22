@@ -3929,11 +3929,7 @@ static PyObject* PyWcsprm_get_wtb(PyWcsprm* self, void* closure) {
       return NULL;
     }
 
-    if (PyList_Append(list, elem) == -1) {
-      Py_DECREF(elem);
-      Py_DECREF(list);
-      return NULL;
-    }
+    PyList_SET_ITEM(list, i, elem);
   }
 
   return list;
