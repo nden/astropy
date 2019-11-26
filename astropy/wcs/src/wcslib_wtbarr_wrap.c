@@ -92,6 +92,7 @@ static PyObject* PyWtbarr_print_contents(PyWtbarr* self) {
   wcsprintf_set(NULL);
   wtbarrprt(self->x);
   printf("%s", wcsprintf_buf());
+  fflush(stdout);
   Py_RETURN_NONE;
 }
 
@@ -177,6 +178,11 @@ static PyGetSetDef PyWtbarr_getset[] = {
 };
 
 
+static PyMethodDef PyWtbarr_methods[] = {
+  {"print_contents", (PyCFunction)PyWtbarr_print_contents, METH_NOARGS, NULL},
+  {NULL}
+};
+
 PyTypeObject PyWtbarrType = {
   PyVarObject_HEAD_INIT(NULL, 0)
   "astropy.wcs.Wtbarr",         /*tp_name*/
@@ -205,7 +211,7 @@ PyTypeObject PyWtbarrType = {
   0,                            /* tp_weaklistoffset */
   0,                            /* tp_iter */
   0,                            /* tp_iternext */
-  0,                            /* tp_methods */
+  PyWtbarr_methods,             /* tp_methods */
   0,                            /* tp_members */
   PyWtbarr_getset,              /* tp_getset */
   0,                            /* tp_base */

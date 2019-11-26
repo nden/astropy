@@ -193,7 +193,7 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
     return 0;
   }
 
-  result = PyObject_CallFunction(get_wtbarr_data, "(OsiiCsii)", hdulist,
+  result = PyObject_CallFunction(get_wtbarr_data, "(OsiiCsli)", hdulist,
       wtb->extnam, wtb->extver, wtb->extlev, wtb->kind, wtb->ttype, wtb->row,
       wtb->ndim);
 
