@@ -571,14 +571,15 @@ PyWcsprm_init(
       return -1;
     }
 
-    wcstab(&self->x);
-    for (j = 0; j < self->x.nwtb; j++) {
-      if (!_update_wtbarr_from_hdulist(hdulist, &(self->x.wtb[j]))) {
-        wcsfree(&self->x);
-        return -1;
+    if (self->x.ntab) {
+      wcstab(&self->x);
+      for (j = 0; j < self->x.nwtb; j++) {
+        if (!_update_wtbarr_from_hdulist(hdulist, &(self->x.wtb[j]))) {
+          wcsfree(&self->x);
+          return -1;
+        }
       }
     }
-    wcsset(&self->x);
 
     note_change(self);
     wcsprm_c2python(&self->x);

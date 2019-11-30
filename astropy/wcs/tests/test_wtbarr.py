@@ -6,8 +6,6 @@ import numpy as np
 
 from astropy import wcs
 
-from . helper import SimModelTAB
-
 
 def test_wtbarr_i(tab_wcs_2di):
     assert tab_wcs_2di.wcs.wtb[0].i == 1
@@ -60,7 +58,7 @@ def test_wtbarr_print(tab_wcs_2di, capfd):
     assert ' ttype: wavelength' == lines[6]
     assert '   row: 1' == lines[7]
     assert '  ndim: 3' == lines[8]
-    assert lines[9].startswith('dimlen: 0x')
+    assert lines[9].startswith('dimlen: ')
     assert '        0:   4' == lines[10]
     assert '        1:   2' == lines[11]
-    assert lines[12].startswith('arrayp: 0x')
+    assert lines[12].startswith('arrayp: ')
