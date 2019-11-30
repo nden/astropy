@@ -10,6 +10,7 @@ from . helper import SimModelTAB
 
 
 def test_2d_spacial_tab_roundtrip(tab_wcs_2di):
+    nx, ny = tab_wcs_2di.pixel_shape
     # generate random test coordinates:
     xy = 0.51 + [nx + 0.99, ny + 0.99] * np.random.random((100, 2))
     rd = tab_wcs_2di.wcs_pix2world(xy, 1)
