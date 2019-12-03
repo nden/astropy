@@ -83,7 +83,7 @@ class SimModelTAB:
         bt.header['EXTNAME'] = 'WCS-TABLE'
 
         # create primary header:
-        image_data = np.random.random((self.ny, self.nx)).astype(np.float32)
+        image_data = np.ones((self.ny, self.nx), dtype=np.float32)
         pu = fits.PrimaryHDU(image_data)
         pu.header['ctype1'] = 'RA---TAB'
         pu.header['ctype2'] = 'DEC--TAB'

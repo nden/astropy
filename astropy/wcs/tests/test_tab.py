@@ -11,7 +11,8 @@ from . helper import SimModelTAB
 
 def test_2d_spacial_tab_roundtrip(tab_wcs_2di):
     nx, ny = tab_wcs_2di.pixel_shape
-    # generate random test coordinates:
+    # generate "random" test coordinates:
+    np.random.seed(1)
     xy = 0.51 + [nx + 0.99, ny + 0.99] * np.random.random((100, 2))
     rd = tab_wcs_2di.wcs_pix2world(xy, 1)
     xy_roundtripped = tab_wcs_2di.wcs_world2pix(rd, 1)
@@ -30,7 +31,8 @@ def test_2d_spacial_tab_vs_model():
     # create WCS object:
     w = wcs.WCS(hdulist[0].header, hdulist)
 
-    # generate random test coordinates:
+    # generate "random" test coordinates:
+    np.random.seed(1)
     xy = 0.51 + [nx + 0.99, ny + 0.99] * np.random.random((100, 2))
     rd = w.wcs_pix2world(xy, 1)
     rd_model = model.fwd_eval(xy)
