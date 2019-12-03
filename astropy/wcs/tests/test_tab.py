@@ -9,7 +9,7 @@ from astropy import wcs
 from . helper import SimModelTAB
 
 
-def test_2d_spacial_tab_roundtrip(tab_wcs_2di):
+def test_2d_spatial_tab_roundtrip(tab_wcs_2di):
     nx, ny = tab_wcs_2di.pixel_shape
     # generate "random" test coordinates:
     np.random.seed(1)
@@ -20,7 +20,7 @@ def test_2d_spacial_tab_roundtrip(tab_wcs_2di):
     assert np.allclose(xy[m], xy_roundtripped[m], rtol=0, atol=1e-7)
 
 
-def test_2d_spacial_tab_vs_model():
+def test_2d_spatial_tab_vs_model():
     nx = 150
     ny = 200
     model = SimModelTAB(nx=nx, ny=ny)

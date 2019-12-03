@@ -52,7 +52,7 @@ class SimModelTAB:
 
     @property
     def hdulist(self):
-        """ Simulates 2D data with a _spacial_ WCS that uses the ``-TAB``
+        """ Simulates 2D data with a _spatial_ WCS that uses the ``-TAB``
         algorithm with indexing.
         """
         # coordinate array (some "arbitrary" numbers with a "jump" along x axis):
