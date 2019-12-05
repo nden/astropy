@@ -291,13 +291,17 @@ class Parameter(OrderedDescriptor):
         if self.unit is not None:
             args += f', unit={self.unit}'
 
-        for cons in self.constraints:
+        for cons in ['fixed', 'bounds']: # self.constraints:
             val = getattr(self, cons)
-            if val not in (None, False, (None, None)):
+            if val not in (None, (None, None)):
                 # Maybe non-obvious, but False is the default for the fixed and
                 # tied constraints
                 args += f', {cons}={val}'
-
+        val = getattr(self, 'tied')
+        if val is not None:
+            import inspect
+            stied = inspect.getsource(self.tied)
+            args += f', tied={stied}'
         return f"{self.__class__.__name__}({args})"
 
     @property
