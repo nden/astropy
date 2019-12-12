@@ -285,6 +285,7 @@ int _update_wtbarr_from_hdulist(PyObject *hdulist, struct wtbarr *wtb) {
   return 1;
 }
 
+
 /***************************************************************************
  * PyWcsprm methods
  */
@@ -624,8 +625,9 @@ PyWcsprm_bounds_check(
 PyWcsprm_copy(
     PyWcsprm* self) {
 
-  PyWcsprm*      copy      = NULL;
-  int            status;
+  PyWcsprm*     copy = NULL;
+  int           status, nelem, i, j;
+  struct wtbarr *wtb, *wtb0;
 
   copy = PyWcsprm_cnew();
   if (copy == NULL) {
@@ -643,6 +645,39 @@ PyWcsprm_copy(
       Py_XDECREF(copy);
       return NULL;
     }
+
+    if (self->x.ntab) {
+      wcstab(&copy->x);
+
+      for (j = 0; j < copy->x.nwtb; j++) {
+        wtb0 = self->x.wtb + j;
+        wtb = copy->x.wtb + j;
+        for (i = 0; i < wtb0->ndim; i++) {
+          wtb->dimlen[i] = wtb0->dimlen[i];
+        }
+        /* Allocate memory for the array. */
+        if (wtb->kind == 'c') {
+          nelem = wtb->ndim;
+          for (int i = 0; i < wtb->ndim - 1; i++) {
+            nelem *= wtb->dimlen[i];
+          }
+        } else {
+          nelem = *(wtb->dimlen);
+        }
+
+        if (!((*wtb->arrayp) = calloc((size_t)nelem, sizeof(double)))) {
+          PyErr_SetString(PyExc_MemoryError, "Out of memory: can't allocate "
+                                             "coordinate or index array.");
+          Py_DECREF(copy);
+          return NULL;
+        }
+
+        for (i = 0; i < nelem; i++) {
+          (*wtb->arrayp)[i] = (*wtb0->arrayp)[i];
+        }
+      }
+    }
+
     wcsprm_c2python(&copy->x);
     return (PyObject*)copy;
   } else {

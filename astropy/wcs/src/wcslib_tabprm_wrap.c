@@ -125,8 +125,7 @@ PyTabprm_set(
     return NULL;
   }
 
-  Py_INCREF(Py_None);
-  return Py_None;
+  Py_RETURN_NONE;
 }
 
 /*@null@*/ static PyObject*
@@ -140,13 +139,10 @@ PyTabprm_print_contents(
   /* This is not thread-safe, but since we're holding onto the GIL,
      we can assume we won't have thread conflicts */
   wcsprintf_set(NULL);
-
   tabprt(self->x);
-
   printf("%s", wcsprintf_buf());
-
-  Py_INCREF(Py_None);
-  return Py_None;
+  fflush(stdout);
+  Py_RETURN_NONE;
 }
 
 /*@null@*/ static PyObject*
