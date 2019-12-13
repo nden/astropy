@@ -658,7 +658,7 @@ PyWcsprm_copy(
         /* Allocate memory for the array. */
         if (wtb->kind == 'c') {
           nelem = wtb->ndim;
-          for (int i = 0; i < wtb->ndim - 1; i++) {
+          for (i = 0; i < wtb->ndim - 1; i++) {
             nelem *= wtb->dimlen[i];
           }
         } else {
