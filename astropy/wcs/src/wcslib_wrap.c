@@ -349,7 +349,8 @@ PyWcsprm_init(
   int            nreject       = 0;
   int            nwcs          = 0;
   struct wcsprm* wcs           = NULL;
-  int            i, j;
+  int            i             = 0;
+  int            j             = 0;
   const char*    keywords[]    = {"header", "key", "relax", "naxis", "keysel",
                                   "colsel", "warnings", "hdulist", NULL};
 
