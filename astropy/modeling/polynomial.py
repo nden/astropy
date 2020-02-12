@@ -6,7 +6,7 @@ Notes regarding usage of domain and window
 ------------------------------------------
 
 Most of the polynomial models have optional domain and window attributes.
-It is important to understand how they currently are interpreted, which 
+It is important to understand how they currently are interpreted, which
 can be confusing since the terminology often implies something different.
 
 Both the domain and window attributes for a polynomial consist of a two
@@ -16,10 +16,10 @@ the attributes become x_domain, y_domain, x_window, and y_window.
 Generally speaking, the main purpose of these attributes is to define
 a linear transform between the supplied input variable and the resultant
 input variable that is supplied to the polynomial. For example, if
-domain = [-2, 2] and window = [-1, 1], input values will be divided by 
+domain = [-2, 2] and window = [-1, 1], input values will be divided by
 two so that the domain maps to the window. Correspondingly the pair
 domain = [0, 2], window = [-1, 1] implies that 1 will be subtracted from
-the input variable before using it in the polynomial. 
+the input variable before using it in the polynomial.
 
 Neither domain or window are meant to imply that values that fall outside
 of their corresponding ranges will result in an exception, or that
@@ -28,19 +28,19 @@ of how the polynomial is being used).
 
 It is the case that the orthogonal polynomials are defined on a range of
 [-1, 1], but nothing in the current machinery prevents them from being
-evaluated outside that range. 
+evaluated outside that range.
 
 Domain is used in fitting polynomials to bound the input variable to map
 to the defined window so that they fall within the expected [-1, 1] range
 for such polynomials. That is, the fitting routine will set the domain to
-map to the window range for the range of input x values supplied (so that 
+map to the window range for the range of input x values supplied (so that
 domain may change if the minimum and maximum x values being fit change).
 
 The meaning of these terms may conflict with expectations (e.g., domain
 is often meant to mean the range of input values the funciton is valid
 for). For fit results that is somewhat true, but otherwise, it is not.
 The default values for ordinary polynomials is [-1, 1] for both domain
-and window, which effectively signals no transformation of the input 
+and window, which effectively signals no transformation of the input
 variable.
 
 The terminology was adopted from numpy polynomials, which have the same
@@ -400,7 +400,7 @@ class Chebyshev1D(PolynomialModel):
             name=name, meta=meta, **params)
 
     def __repr__(self):
-        return self._format_repr([self.degree], 
+        return self._format_repr([self.degree],
                                  kwargs={'domain': self.domain, 'window': self.window},
                                  defaults={'domain': None, 'window': [-1, 1]})
 
@@ -522,7 +522,7 @@ class Hermite1D(PolynomialModel):
             name=name, meta=meta, **params)
 
     def __repr__(self):
-        return self._format_repr([self.degree], 
+        return self._format_repr([self.degree],
                                  kwargs={'domain': self.domain, 'window': self.window},
                                  defaults={'domain': None, 'window': [-1, 1]})
 
@@ -653,7 +653,7 @@ class Hermite2D(OrthoPolynomialBase):
             model_set_axis=model_set_axis, name=name, meta=meta, **params)
 
     def __repr__(self):
-        return self._format_repr([self.x_degree, self.y_degree], 
+        return self._format_repr([self.x_degree, self.y_degree],
                                  kwargs={'x_domain': self.x_domain,
                                          'y_domain': self.y_domain,
                                          'x_window': self.x_window,
@@ -803,7 +803,7 @@ class Legendre1D(PolynomialModel):
             name=name, meta=meta, **params)
 
     def __repr__(self):
-        return self._format_repr([self.degree], 
+        return self._format_repr([self.degree],
                                  kwargs={'domain': self.domain, 'window': self.window},
                                  defaults={'domain': None, 'window': [-1, 1]})
 
@@ -917,7 +917,7 @@ class Polynomial1D(PolynomialModel):
             name=name, meta=meta, **params)
 
     def __repr__(self):
-        return self._format_repr([self.degree], 
+        return self._format_repr([self.degree],
                                  kwargs={'domain': self.domain, 'window': self.window},
                                  defaults={'domain': [-1, 1], 'window': [-1, 1]})
 
@@ -1080,7 +1080,7 @@ class Polynomial2D(PolynomialModel):
         return result
 
     def __repr__(self):
-        return self._format_repr([self.x_degree, self.y_degree], 
+        return self._format_repr([self.x_degree, self.y_degree],
                                  kwargs={'x_domain': self.x_domain,
                                          'y_domain': self.y_domain,
                                          'x_window': self.x_window,
@@ -1275,7 +1275,7 @@ class Chebyshev2D(OrthoPolynomialBase):
         return kfunc
 
     def __repr__(self):
-        return self._format_repr([self.x_degree, self.y_degree], 
+        return self._format_repr([self.x_degree, self.y_degree],
                                  kwargs={'x_domain': self.x_domain,
                                          'y_domain': self.y_domain,
                                          'x_window': self.x_window,
@@ -1440,7 +1440,7 @@ class Legendre2D(OrthoPolynomialBase):
         return kfunc
 
     def __repr__(self):
-        return self._format_repr([self.x_degree, self.y_degree], 
+        return self._format_repr([self.x_degree, self.y_degree],
                                  kwargs={'x_domain': self.x_domain,
                                          'y_domain': self.y_domain,
                                          'x_window': self.x_window,
