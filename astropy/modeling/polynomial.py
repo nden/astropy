@@ -1,6 +1,50 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
 This module contains models representing polynomials and polynomial series.
+
+Notes regarding usage of domain and window
+------------------------------------------
+
+Most of the polynomial models have optional domain and window attributes.
+It is important to understand how they currently are interpreted, which 
+can be confusing since the terminology often implies something different.
+
+Both the domain and window attributes for a polynomial consist of a two
+element list (this will change to tuples in a future release) that
+indicate a range of values for input values. For 2-Dimensional polynomials
+the attributes become x_domain, y_domain, x_window, and y_window.
+Generally speaking, the main purpose of these attributes is to define
+a linear transform between the supplied input variable and the resultant
+input variable that is supplied to the polynomial. For example, if
+domain = [-2, 2] and window = [-1, 1], input values will be divided by 
+two so that the domain maps to the window. Correspondingly the pair
+domain = [0, 2], window = [-1, 1] implies that 1 will be subtracted from
+the input variable before using it in the polynomial. 
+
+Neither domain or window are meant to imply that values that fall outside
+of their corresponding ranges will result in an exception, or that
+such values are necessarily invalid (the latter depends on the context
+of how the polynomial is being used).
+
+It is the case that the orthogonal polynomials are defined on a range of
+[-1, 1], but nothing in the current machinery prevents them from being
+evaluated outside that range. 
+
+Domain is used in fitting polynomials to bound the input variable to map
+to the defined window so that they fall within the expected [-1, 1] range
+for such polynomials. That is, the fitting routine will set the domain to
+map to the window range for the range of input x values supplied (so that 
+domain may change if the minimum and maximum x values being fit change).
+
+The meaning of these terms may conflict with expectations (e.g., domain
+is often meant to mean the range of input values the funciton is valid
+for). For fit results that is somewhat true, but otherwise, it is not.
+The default values for ordinary polynomials is [-1, 1] for both domain
+and window, which effectively signals no transformation of the input 
+variable.
+
+The terminology was adopted from numpy polynomials, which have the same
+confusion in meaning.
 """
 # pylint: disable=invalid-name
 import numpy as np
@@ -153,13 +197,13 @@ class OrthoPolynomialBase(PolynomialBase):
     y_degree : int
         degree in y
     x_domain : list or None, optional
-        domain of the x independent variable
+        domain of the x independent variable; see notes on usage at module level
     x_window : list or None, optional
-        range of the x independent variable
+        range of the x independent variable; see notes on usage at module level
     y_domain : list or None, optional
-        domain of the y independent variable
+        domain of the y independent variable; see notes on usage at module level
     y_window : list or None, optional
-        range of the y independent variable
+        range of the y independent variable; see notes on usage at module level
     **params : dict
         {keyword: value} pairs, representing {parameter_name: value}
     """
@@ -323,8 +367,8 @@ class Chebyshev1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional
-    window : list or None, optional
+    domain : list or None, optional; see notes on usage at module level
+    window : list or None, optional; see notes on usage at module level
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
     **params : dict
@@ -345,9 +389,11 @@ class Chebyshev1D(PolynomialModel):
 
     _separable = True
 
-    def __init__(self, degree, domain=None, window=[-1, 1], n_models=None,
+    def __init__(self, degree, domain=None, window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
         self.domain = domain
+        if window is None:
+            window = [-1, 1]
         self.window = window
         super().__init__(
             degree, n_models=n_models, model_set_axis=model_set_axis,
@@ -432,8 +478,8 @@ class Hermite1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional
-    window : list or None, optional
+    domain : list or None, optional; see notes on usage at module level
+    window : list or None, optional; see notes on usage at module level
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
     **params : dict
@@ -454,9 +500,11 @@ class Hermite1D(PolynomialModel):
 
     _separable = True
 
-    def __init__(self, degree, domain=None, window=[-1, 1], n_models=None,
+    def __init__(self, degree, domain=None, window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
         self.domain = domain
+        if window is None:
+            window = [-1, 1]
         self.window = window
         super().__init__(
             degree, n_models=n_models, model_set_axis=model_set_axis,
@@ -542,14 +590,18 @@ class Hermite2D(OrthoPolynomialBase):
         degree in x
     y_degree : int
         degree in y
-    x_domain : list or None, optional
+    x_domain : list or None, optional; see notes on usage at module level
         domain of the x independent variable
-    y_domain : list or None, optional
+    y_domain : list or None, optional; see notes on usage at module level
         domain of the y independent variable
-    x_window : list or None, optional
+    x_window : list or None, optional; see notes on usage at module level
         range of the x independent variable
-    y_window : list or None, optional
+        If None, it is set to [-1,1]
+        Fitters will remap the domain to this window
+    y_window : list or None, optional; see notes on usage at module level
         range of the y independent variable
+        If None, it is set to [-1,1]
+        Fitters will remap the domain to this window
     **params : dict
         keyword: value pairs, representing parameter_name: value
 
@@ -565,9 +617,13 @@ class Hermite2D(OrthoPolynomialBase):
     """
     _separable = False
 
-    def __init__(self, x_degree, y_degree, x_domain=None, x_window=[-1, 1],
-                 y_domain=None, y_window=[-1, 1], n_models=None,
+    def __init__(self, x_degree, y_degree, x_domain=None, x_window=None,
+                 y_domain=None, y_window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
+        if x_window is None:
+            x_window = [-1, 1]
+        if y_window is None:
+            y_window = [-1, 1]
         super().__init__(
             x_degree, y_degree, x_domain=x_domain, y_domain=y_domain,
             x_window=x_window, y_window=y_window, n_models=n_models,
@@ -668,8 +724,8 @@ class Legendre1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional
-    window : list or None, optional
+    domain : list or None, optional; see notes on usage at module level
+    window : list or None, optional; see notes on usage at module level
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
     **params : dict
@@ -692,9 +748,11 @@ class Legendre1D(PolynomialModel):
 
     _separable = True
 
-    def __init__(self, degree, domain=None, window=[-1, 1], n_models=None,
+    def __init__(self, degree, domain=None, window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
         self.domain = domain
+        if window is None:
+            window = [-1, 1]
         self.window = window
         super().__init__(
             degree, n_models=n_models, model_set_axis=model_set_axis,
@@ -775,8 +833,9 @@ class Polynomial1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional
-    window : list or None, optional
+    domain : list or None, optional; see notes on usage at module level
+        If None, it is set to [-1, 1]
+    window : list or None, optional; see notes on usage at module level
         If None, it is set to [-1, 1]
         Fitters will remap the domain to this window
     **params : dict
@@ -789,8 +848,12 @@ class Polynomial1D(PolynomialModel):
 
     _separable = True
 
-    def __init__(self, degree, domain=[-1, 1], window=[-1, 1], n_models=None,
+    def __init__(self, degree, domain=None, window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
+        if domain is None:
+            domain = [-1, 1]
+        if window is None:
+            window = [-1, 1]
         self.domain = domain
         self.window = window
         super().__init__(
@@ -878,13 +941,19 @@ class Polynomial2D(PolynomialModel):
         highest power of the polynomial,
         the number of terms is degree+1
     x_domain : list or None, optional
-        domain of the x independent variable
+        domain of the x independent variable; see notes on usage at module level
+        If None, it is set to [-1, 1]
     y_domain : list or None, optional
-        domain of the y independent variable
+        domain of the y independent variable; see notes on usage at module level
+        If None, it is set to [-1, 1]
     x_window : list or None, optional
-        range of the x independent variable
+        range of the x independent variable; see notes on usage at module level
+        If None, it is set to [-1, 1]
+        Fitters will remap the x_domain to x_window
     y_window : list or None, optional
-        range of the y independent variable
+        range of the y independent variable; see notes on usage at module level
+        If None, it is set to [-1, 1]
+        Fitters will remap the y_domain to y_window
     **params : dict
         keyword: value pairs, representing parameter_name: value
     """
@@ -894,12 +963,21 @@ class Polynomial2D(PolynomialModel):
 
     _separable = False
 
-    def __init__(self, degree, x_domain=[-1, 1], y_domain=[-1, 1],
-                 x_window=[-1, 1], y_window=[-1, 1], n_models=None,
+    def __init__(self, degree, x_domain=None, y_domain=None,
+                 x_window=None, y_window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
         super().__init__(
             degree, n_models=n_models, model_set_axis=model_set_axis,
             name=name, meta=meta, **params)
+        if x_domain is None:
+            x_domain = [-1, 1]
+        if y_domain is None:
+            y_domain = [-1, 1]
+        if x_window is None:
+            x_window = [-1, 1]
+        if y_window is None:
+            y_window = [-1, 1]
+
         self.x_domain = x_domain
         self.y_domain = y_domain
         self.x_window = x_window
@@ -1049,14 +1127,19 @@ class Chebyshev2D(OrthoPolynomialBase):
         degree in x
     y_degree : int
         degree in y
-    x_domain : list or None, optional
+    x_domain : list or None, optional; see notes on usage at module level
         domain of the x independent variable
-    y_domain : list or None, optional
+    y_domain : list or None, optional; see notes on usage at module level
         domain of the y independent variable
-    x_window : list or None, optional
+    x_window : list or None, optional; see notes on usage at module level
         range of the x independent variable
-    y_window : list or None, optional
+        If None, it is set to [-1,1]
+        Fitters will remap the domain to this window
+    y_window : list or None, optional; see notes on usage at module level
         range of the y independent variable
+        If None, it is set to [-1,1]
+        Fitters will remap the domain to this window
+
     **params : dict
         keyword: value pairs, representing parameter_name: value
 
@@ -1072,9 +1155,14 @@ class Chebyshev2D(OrthoPolynomialBase):
     """
     _separable = False
 
-    def __init__(self, x_degree, y_degree, x_domain=None, x_window=[-1, 1],
-                 y_domain=None, y_window=[-1, 1], n_models=None,
+    def __init__(self, x_degree, y_degree, x_domain=None, x_window=None,
+                 y_domain=None, y_window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
+        if x_window is None:
+            x_window = [-1, 1]
+        if y_window is None:
+            y_window = [-1, 1]
+
         super().__init__(
             x_degree, y_degree, x_domain=x_domain, y_domain=y_domain,
             x_window=x_window, y_window=y_window, n_models=n_models,
@@ -1176,14 +1264,18 @@ class Legendre2D(OrthoPolynomialBase):
         degree in x
     y_degree : int
         degree in y
-    x_domain : list or None, optional
+    x_domain : list or None, optional; see notes on usage at module level
         domain of the x independent variable
-    y_domain : list or None, optional
+    y_domain : list or None, optional; see notes on usage at module level
         domain of the y independent variable
-    x_window : list or None, optional
+    x_window : list or None, optional; see notes on usage at module level
         range of the x independent variable
-    y_window : list or None, optional
+        If None, it is set to [-1,1]
+        Fitters will remap the domain to this window
+    y_window : list or None, optional; see notes on usage at module level
         range of the y independent variable
+        If None, it is set to [-1,1]
+        Fitters will remap the domain to this window
     **params : dict
         keyword: value pairs, representing parameter_name: value
 
@@ -1206,9 +1298,14 @@ class Legendre2D(OrthoPolynomialBase):
     """
     _separable = False
 
-    def __init__(self, x_degree, y_degree, x_domain=None, x_window=[-1, 1],
-                 y_domain=None, y_window=[-1, 1], n_models=None,
+    def __init__(self, x_degree, y_degree, x_domain=None, x_window=None,
+                 y_domain=None, y_window=None, n_models=None,
                  model_set_axis=None, name=None, meta=None, **params):
+        if x_window is None:
+            x_window = [-1, 1]
+        if y_window is None:
+            y_window = [-1, 1]
+
         super().__init__(
             x_degree, y_degree, x_domain=x_domain, y_domain=y_domain,
             x_window=x_window, y_window=y_window, n_models=n_models,
