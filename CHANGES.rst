@@ -593,6 +593,8 @@ astropy.io.misc
 
 - Fixed serialization of Time objects with location under time-1.0.0
   ASDF schema. [#9983]
+- Fixed serialization of polynomial models to include non default values of
+  domain and window values. [#9941]
 
 astropy.io.fits
 ^^^^^^^^^^^^^^^
@@ -641,6 +643,9 @@ astropy.modeling
 
 - Fixed a bug in setting default values of parameters of orthonormal
   polynomials when constructing a model set. [#9987]
+- Improvements to documentation clearing up how domain and window attributes are
+  used for polynomials; added domain and window attributes to repr and str. Fixed
+  bug with _format_repr in core.py. [#9941]
 
 astropy.table
 ^^^^^^^^^^^^^
