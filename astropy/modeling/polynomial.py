@@ -399,6 +399,17 @@ class Chebyshev1D(PolynomialModel):
             degree, n_models=n_models, model_set_axis=model_set_axis,
             name=name, meta=meta, **params)
 
+    def __repr__(self):
+        return self._format_repr([self.degree], 
+                                 kwargs={'domain': self.domain, 'window': self.window},
+                                 defaults={'domain': None, 'window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('Degree', self.degree),
+             ('Domain', self.domain),
+             ('Window', self.window)])
+
     def fit_deriv(self, x, *params):
         """
         Computes the Vandermonde matrix.
@@ -509,6 +520,18 @@ class Hermite1D(PolynomialModel):
         super().__init__(
             degree, n_models=n_models, model_set_axis=model_set_axis,
             name=name, meta=meta, **params)
+
+    def __repr__(self):
+        return self._format_repr([self.degree], 
+                                 kwargs={'domain': self.domain, 'window': self.window},
+                                 defaults={'domain': None, 'window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('Degree', self.degree),
+             ('Domain', self.domain),
+             ('Window', self.window)])
+
 
     def fit_deriv(self, x, *params):
         """
@@ -628,6 +651,27 @@ class Hermite2D(OrthoPolynomialBase):
             x_degree, y_degree, x_domain=x_domain, y_domain=y_domain,
             x_window=x_window, y_window=y_window, n_models=n_models,
             model_set_axis=model_set_axis, name=name, meta=meta, **params)
+
+    def __repr__(self):
+        return self._format_repr([self.x_degree, self.y_degree], 
+                                 kwargs={'x_domain': self.x_domain,
+                                         'y_domain': self.y_domain,
+                                         'x_window': self.x_window,
+                                         'y_window': self.y_window},
+                                 defaults={'x_domain': None,
+                                           'y_domain': None,
+                                           'x_window': [-1, 1],
+                                           'y_window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('X_Degree', self.x_degree),
+             ('Y_Degree', self.y_degree),
+             ('X_Domain', self.x_domain),
+             ('Y_Domain', self.y_domain),
+             ('X_Window', self.x_window),
+             ('Y_Window', self.y_window)])
+
 
     def _fcache(self, x, y):
         """
@@ -758,6 +802,18 @@ class Legendre1D(PolynomialModel):
             degree, n_models=n_models, model_set_axis=model_set_axis,
             name=name, meta=meta, **params)
 
+    def __repr__(self):
+        return self._format_repr([self.degree], 
+                                 kwargs={'domain': self.domain, 'window': self.window},
+                                 defaults={'domain': None, 'window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('Degree', self.degree),
+             ('Domain', self.domain),
+             ('Window', self.window)])
+
+
     def prepare_inputs(self, x, **kwargs):
         inputs, format_info = super().prepare_inputs(x, **kwargs)
 
@@ -859,6 +915,17 @@ class Polynomial1D(PolynomialModel):
         super().__init__(
             degree, n_models=n_models, model_set_axis=model_set_axis,
             name=name, meta=meta, **params)
+
+    def __repr__(self):
+        return self._format_repr([self.degree], 
+                                 kwargs={'domain': self.domain, 'window': self.window},
+                                 defaults={'domain': [-1, 1], 'window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('Degree', self.degree),
+             ('Domain', self.domain),
+             ('Window', self.window)])
 
     def prepare_inputs(self, x, **kwargs):
         inputs, format_info = super().prepare_inputs(x, **kwargs)
@@ -1011,6 +1078,26 @@ class Polynomial2D(PolynomialModel):
                 result = new_result
 
         return result
+
+    def __repr__(self):
+        return self._format_repr([self.x_degree, self.y_degree], 
+                                 kwargs={'x_domain': self.x_domain,
+                                         'y_domain': self.y_domain,
+                                         'x_window': self.x_window,
+                                         'y_window': self.y_window},
+                                 defaults={'x_domain': [-1, 1],
+                                           'y_domain': [-1, 1],
+                                           'x_window': [-1, 1],
+                                           'y_window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('X_Degree', self.x_degree),
+             ('Y_Degree', self.y_degree),
+             ('X_Domain', self.x_domain),
+             ('Y_Domain', self.y_domain),
+             ('X_Window', self.x_window),
+             ('Y_Window', self.y_window)])
 
     def fit_deriv(self, x, y, *params):
         """
@@ -1187,6 +1274,26 @@ class Chebyshev2D(OrthoPolynomialBase):
             kfunc[n] = 2 * y * kfunc[n - 1] - kfunc[n - 2]
         return kfunc
 
+    def __repr__(self):
+        return self._format_repr([self.x_degree, self.y_degree], 
+                                 kwargs={'x_domain': self.x_domain,
+                                         'y_domain': self.y_domain,
+                                         'x_window': self.x_window,
+                                         'y_window': self.y_window},
+                                 defaults={'x_domain': None,
+                                           'y_domain': None,
+                                           'x_window': [-1, 1],
+                                           'y_window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('X_Degree', self.x_degree),
+             ('Y_Degree', self.y_degree),
+             ('X_Domain', self.x_domain),
+             ('Y_Domain', self.y_domain),
+             ('X_Window', self.x_window),
+             ('Y_Window', self.y_window)])
+
     def fit_deriv(self, x, y, *params):
         """
         Derivatives with respect to the coefficients.
@@ -1331,6 +1438,26 @@ class Legendre2D(OrthoPolynomialBase):
             kfunc[n + x_terms] = ((2 * (n - 1) + 1) * y * kfunc[n + x_terms - 1] -
                                   (n - 1) * kfunc[n + x_terms - 2]) / (n)
         return kfunc
+
+    def __repr__(self):
+        return self._format_repr([self.x_degree, self.y_degree], 
+                                 kwargs={'x_domain': self.x_domain,
+                                         'y_domain': self.y_domain,
+                                         'x_window': self.x_window,
+                                         'y_window': self.y_window},
+                                 defaults={'x_domain': None,
+                                           'y_domain': None,
+                                           'x_window': [-1, 1],
+                                           'y_window': [-1, 1]})
+
+    def __str__(self):
+        return self._format_str(
+            [('X_Degree', self.x_degree),
+             ('Y_Degree', self.y_degree),
+             ('X_Domain', self.x_domain),
+             ('Y_Domain', self.y_domain),
+             ('X_Window', self.x_window),
+             ('Y_Window', self.y_window)])
 
     def fit_deriv(self, x, y, *params):
         """
