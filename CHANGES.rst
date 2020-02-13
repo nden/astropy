@@ -386,7 +386,7 @@ astropy.modeling
 
 - Improvements to documentation clearing up how domain and window attributes are
   used for polynomials; added domain and window attributes to repr and str. Fixed
-  bug with _format_repr in core.py. #9941
+  bug with _format_repr in core.py. [#9941]
 
 astropy.nddata
 ^^^^^^^^^^^^^^
