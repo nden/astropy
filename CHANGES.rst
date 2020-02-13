@@ -220,7 +220,7 @@ astropy.io.misc
 ^^^^^^^^^^^^^^^
 
 - Fixed serialization of polynomial models to include non default values of
-  domain and window values. #9941
+  domain and window values. [#9941]
 
 astropy.io.fits
 ^^^^^^^^^^^^^^^
