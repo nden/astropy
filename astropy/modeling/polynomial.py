@@ -140,8 +140,9 @@ class OrthoPolynomialBase(PolynomialBase):
     This is a base class for the 2D Chebyshev and Legendre models.
 
     The polynomials implemented here require a maximum degree in x and y.
-    For explanation of `x_domain`, `y_domain`, `x_window and `y_window` 
-    see :ref:`Notes regarding usage of domain and window <domain-window-note>`
+
+    For explanation of `x_domain`, `y_domain`, `x_window` and `y_window`
+    see :ref:`Notes regarding usage of domain and window <domain-window-note>`.
 
     For explanation of ``x_domain``, ``y_domain``, ```x_window`` and ```y_window``
     see :ref:`Notes regarding usage of domain and window <domain-window-note>`.
@@ -318,15 +319,15 @@ class Chebyshev1D(PolynomialModel):
 
     where ``T_i(x)`` is the corresponding Chebyshev polynomial of the 1st kind.
 
-    For explanation of ```domain``, and ``window`` see
+    For explanation of ``domain``, and ``window`` see
     :ref:`Notes regarding usage of domain and window <domain-window-note>`.
 
     Parameters
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional; see notes on usage at module level
-    window : list or None, optional; see notes on usage at module level
+    domain : list or None, optional
+    window : list or None, optional
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
     **params : dict
@@ -447,8 +448,8 @@ class Hermite1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional; see notes on usage at module level
-    window : list or None, optional; see notes on usage at module level
+    domain : list or None, optional
+    window : list or None, optional
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
     **params : dict
@@ -571,15 +572,15 @@ class Hermite2D(OrthoPolynomialBase):
         degree in x
     y_degree : int
         degree in y
-    x_domain : list or None, optional; see notes on usage at module level
+    x_domain : list or None, optional
         domain of the x independent variable
-    y_domain : list or None, optional; see notes on usage at module level
+    y_domain : list or None, optional
         domain of the y independent variable
-    x_window : list or None, optional; see notes on usage at module level
+    x_window : list or None, optional
         range of the x independent variable
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
-    y_window : list or None, optional; see notes on usage at module level
+    y_window : list or None, optional
         range of the y independent variable
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
@@ -726,8 +727,8 @@ class Legendre1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional; see notes on usage at module level
-    window : list or None, optional; see notes on usage at module level
+    domain : list or None, optional
+    window : list or None, optional
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
     **params : dict
@@ -847,9 +848,9 @@ class Polynomial1D(PolynomialModel):
     ----------
     degree : int
         degree of the series
-    domain : list or None, optional; see notes on usage at module level
+    domain : list or None, optional
         If None, it is set to [-1, 1]
-    window : list or None, optional; see notes on usage at module level
+    window : list or None, optional
         If None, it is set to [-1, 1]
         Fitters will remap the domain to this window
     **params : dict
@@ -966,17 +967,17 @@ class Polynomial2D(PolynomialModel):
         highest power of the polynomial,
         the number of terms is degree+1
     x_domain : list or None, optional
-        domain of the x independent variable; see notes on usage at module level
+        domain of the x independent variable
         If None, it is set to [-1, 1]
     y_domain : list or None, optional
-        domain of the y independent variable; see notes on usage at module level
+        domain of the y independent variable
         If None, it is set to [-1, 1]
     x_window : list or None, optional
-        range of the x independent variable; see notes on usage at module level
+        range of the x independent variable
         If None, it is set to [-1, 1]
         Fitters will remap the x_domain to x_window
     y_window : list or None, optional
-        range of the y independent variable; see notes on usage at module level
+        range of the y independent variable
         If None, it is set to [-1, 1]
         Fitters will remap the y_domain to y_window
     **params : dict
@@ -1172,15 +1173,15 @@ class Chebyshev2D(OrthoPolynomialBase):
         degree in x
     y_degree : int
         degree in y
-    x_domain : list or None, optional; see notes on usage at module level
+    x_domain : list or None, optional
         domain of the x independent variable
-    y_domain : list or None, optional; see notes on usage at module level
+    y_domain : list or None, optional
         domain of the y independent variable
-    x_window : list or None, optional; see notes on usage at module level
+    x_window : list or None, optional
         range of the x independent variable
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
-    y_window : list or None, optional; see notes on usage at module level
+    y_window : list or None, optional
         range of the y independent variable
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
@@ -1329,15 +1330,15 @@ class Legendre2D(OrthoPolynomialBase):
         degree in x
     y_degree : int
         degree in y
-    x_domain : list or None, optional; see notes on usage at module level
+    x_domain : list or None, optional
         domain of the x independent variable
-    y_domain : list or None, optional; see notes on usage at module level
+    y_domain : list or None, optional
         domain of the y independent variable
-    x_window : list or None, optional; see notes on usage at module level
+    x_window : list or None, optional
         range of the x independent variable
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
-    y_window : list or None, optional; see notes on usage at module level
+    y_window : list or None, optional
         range of the y independent variable
         If None, it is set to [-1,1]
         Fitters will remap the domain to this window
