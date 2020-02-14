@@ -1,5 +1,5 @@
 .. include:: links.inc
-	     
+
 .. _polynomial_models:
 
 *****************
@@ -57,13 +57,13 @@ confusion in meaning.
 1D Polynomials
 **************
 
-- :class:`~astropy.modeling.polynomial.Polynomial1D`
+- :class:`~astropy.modeling.polynomials.Polynomial1D`
 
-- :class:`~astropy.modeling.polynomial.Chebyshev1D`
+- :class:`~astropy.modeling.polynomials.Chebyshev1D`
 
-- :class:`~astropy.modeling.polynomial.Legendre1D`
+- :class:`~astropy.modeling.polynomials.Legendre1D`
 
-- :class:`~astropy.modeling.polynomial.Hermite1D`
+- :class:`~astropy.modeling.polynomials.Hermite1D`
 
 **************
 2D Polynomials
@@ -78,6 +78,4 @@ confusion in meaning.
 - :class:`~astropy.modeling.polynomial.Hermite2D`
 
 - :class:`~astropy.modeling.polynomial.SIP` model implements the
-  Simple Imaging Polynomial (`SIP`_) convention 
-
-  
+  Simple Imaging Polynomial (`SIP`_) convention
