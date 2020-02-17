@@ -33,6 +33,7 @@ astropy.io.ascii
 
 astropy.io.misc
 ^^^^^^^^^^^^^^^
+- Added 'functional_models.py' to asdf/tags/transform. Added tags for all functional models. [#10028]
 
 astropy.io.fits
 ^^^^^^^^^^^^^^^
@@ -146,6 +147,7 @@ astropy.io.ascii
 
 astropy.io.misc
 ^^^^^^^^^^^^^^^
+- Added 'functional_models.py' to asdf/tags/transform. Added tags for Gaussian1D and Gaussian2D models to allow serialization. [#9959]
 
 astropy.io.fits
 ^^^^^^^^^^^^^^^
