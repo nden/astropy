@@ -46,6 +46,9 @@ astropy.modeling
 - Added ``UnitsMapping`` model and ``Model.coerce_units`` to support units on otherwise
   unitless models. [#9936]
 
+- Added ``domain`` and ``window`` attributes to ``repr`` and ``str``. Fixed bug with
+  ``_format_repr`` in core.py. [#9941]
+
 astropy.nddata
 ^^^^^^^^^^^^^^
 
@@ -357,12 +360,10 @@ astropy.io.misc
 
 - Fixed serialization of polynomial models to include non default values of
   domain and window values. [#9956, #9961]
+
 - Fixed a bug which affected overwriting tables within ``hdf5`` files.
   Overwriting an existing path with associated column meta data now also
   overwrites the meta data associated with the table. [#9950]
-
-- Fixed serialization of polynomial models to include non default values of
-  domain and window values. [#9941]
 
 astropy.io.fits
 ^^^^^^^^^^^^^^^
@@ -383,10 +384,6 @@ astropy.io.votable
 
 astropy.modeling
 ^^^^^^^^^^^^^^^^
-
-- Improvements to documentation clearing up how domain and window attributes are
-  used for polynomials; added domain and window attributes to repr and str. Fixed
-  bug with _format_repr in core.py. [#9941]
 
 astropy.nddata
 ^^^^^^^^^^^^^^
@@ -420,7 +417,7 @@ astropy.time
 - Fixed exceptions in ``Time.to_value()``: when supplying any ``subfmt`` argument
   for string-based formats like 'iso', and for ``subfmt='long'`` for the formats
   'byear', 'jyear', and 'decimalyear'. [#9812]
-  
+
 - Fixed bug where the location attribute was lost when creating a new ``Time``
   object from an existing ``Time`` or list of ``Time`` objects. [#9969]
 
