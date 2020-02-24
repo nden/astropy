@@ -102,7 +102,6 @@ class PolynomialTypeBase(TransformType):
     DOMAIN_WINDOW_MIN_VERSION = AsdfVersion("1.2.0")
 
     name = "transform/polynomial"
-    version = '1.2.0'
     types = ['astropy.modeling.models.Polynomial1D',
              'astropy.modeling.models.Polynomial2D']
 
