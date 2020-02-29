@@ -3692,7 +3692,7 @@ def _prepare_inputs_single_model(model, params, inputs, **kwargs):
                 max_broadcast = broadcast
             elif len(broadcast) == len(max_broadcast):
                 max_broadcast = max(max_broadcast, broadcast)
-
+        
         broadcasts.append(max_broadcast)
 
     if model.n_outputs > model.n_inputs:
@@ -3712,15 +3712,16 @@ def _prepare_inputs_single_model(model, params, inputs, **kwargs):
             # inputs necessary (see _prepare_outputs_single_model)
             broadcasts.append(None)
         broadcasts.extend([broadcasts[0]] * extra_outputs)
-
-    return inputs, (broadcasts,)
+    brc = np.broadcast(*inputs)
+    return inputs, (broadcasts,) #([brc.shape],)#(broadcasts,)
 
 
 def _prepare_outputs_single_model(outputs, format_info):
     broadcasts = format_info[0]
+    print('broadcasts', broadcasts)
     outputs = list(outputs)
     for idx, output in enumerate(outputs):
-        broadcast_shape = broadcasts[idx]
+        broadcast_shape = broadcasts#[idx]
         if broadcast_shape is not None:
             if not broadcast_shape:
                 # Shape is (), i.e. a scalar should be returned
@@ -3853,7 +3854,8 @@ def _validate_input_shapes(inputs, argnames, n_models, model_set_axis,
                                            n_models))
         all_shapes.append(input_shape)
 
-    input_shape = check_consistent_shapes(*all_shapes)
+    #input_shape = check_consistent_shapes(*all_shapes)
+    input_shape = check_broadcast(*all_shapes)
     if input_shape is None:
         raise ValueError(
             "All inputs must have identical shapes or must be scalars.")
