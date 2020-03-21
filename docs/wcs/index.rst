@@ -11,13 +11,27 @@ World Coordinate System (`astropy.wcs`)
 Introduction
 ============
 
-`astropy.wcs` contains utilities for managing World Coordinate System
-(WCS) transformations in FITS files.  These transformations map the
-pixel locations in an image to their real-world units, such as their
-position on the sky sphere.  These transformations can work both
-forward (from pixel to sky) and backward (from sky to pixel).
+World Coordinate Systems (WCSs) describe the geometric transformations
+between one set of coordinates and another. A common application is to
+map the pixels in an image onto the celestial sphere. Another common
+application is to map pixels to wavelength in a spectrum.
 
-It performs three separate classes of WCS transformations:
+astropy.wcs contains utilities for managing World Coordinate System
+(WCS) transformations defined in several elaborate `FITS WCS standard`_ conventions.
+These transformations work both forward (from pixel to world) and backward
+(from world to pixel).
+
+For historical reasons and to support legacy software, `astropy.wcs` maintains
+two separate application interfaces. The ``High-Level API`` should be used by
+most applications. It abstracts out the underlying object and works transparently
+with other packages which support the
+`Common Python Interface for WCS <https://zenodo.org/record/1188875#.XnpOtJNKjyI>`_,
+allowing for a more flexible approach to the problem and avoiding the `limitations
+of the FITS WCS standard <https://ui.adsabs.harvard.edu/abs/2015A%26C....12..133T/abstract>`_.
+
+The ``Low Level API`` is the original `astropy.wcs` API. It ties applications to
+the `astropy.wcs` package and limits the transformations to the three distinct
+types supported by it:
 
 - Core WCS, as defined in the `FITS WCS standard`_, based on Mark
   Calabretta's `wcslib`_.  (Also includes ``TPV`` and ``TPD``
@@ -28,79 +42,103 @@ It performs three separate classes of WCS transformations:
 - table lookup distortions as defined in the FITS WCS `distortion
   paper`_.
 
-Each of these transformations can be used independently or together in
-a standard pipeline.
+Pixel Conventions and Definitions
+---------------------------------
 
-Getting Started
-===============
+Both APIs assume that integer pixel values fall at the center of pixels (as assumed in
+the `FITS WCS standard`_, see Section 2.1.4 of `Greisen et al., 2002,
+A&A 446, 747 <https://doi.org/10.1051/0004-6361:20053818>`_).
 
-The basic workflow is as follows:
+However, there’s a difference in what is considered to be the first pixel. The
+``High Level API`` follows the Python and C convention that the first pixel is
+the 0-th one, i.e. the first pixel spans pixel values -0.5 to + 0.5. The
+``Low Level API`` takes an additional ``origin`` argument with values of 0 or 1
+indicating whether the input arrays are 0- or 1-based.
+The Low-level interface assumes Cartesian order (x, y) of the input coordinates,
+however the Common Interface for World Coordinate System accepts both conventions.
+The order of the pixel coordinates ((x, y) vs (row, column)) in the Common API
+depends on the method or property used, and this can normally be determined from
+the property or method name. Properties and methods containing “pixel” assume (x, y)
+ordering, while properties and methods containing “array” assume (row, column) ordering.
 
-    1. ``from astropy import wcs``
+Some Simple Examples
+====================
 
-    2. Call the `~astropy.wcs.WCS` constructor with an
-       `astropy.io.fits` `~astropy.io.fits.Header` and/or
-       `~astropy.io.fits.HDUList` object.
+One example of the use of the high-level WCS API is to use the
+`~astropy.wcs.wcs.WCS.pixel_to_world` to yield the simplest WCS
+with default values, converting from pixel to world coordinates::
 
-    3. Optionally, if the FITS file uses any deprecated or
-       non-standard features, you may need to call one of the
-       `~astropy.wcs.wcs.WCS.fix` methods on the object.
+    >>> from astropy.wcs import WCS
+    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
+    >>> lon, lat = w.pixel_to_world(30, 40)
+    >>> print(lon, lat)
+    31.0 41.0
 
-    4. Use one of the following transformation methods:
+Similarly, another use of the high-level API is to use the
+`~astropy.wcs.wcs.WCS.world_to_pixel` to yield another simple WCS, while
+converting from world to pixel coordinates::
 
-       - From pixels to world coordinates:
+    >>> from astropy.wcs import WCS
+    >>> from astropy.units import Unit
+    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
+    >>> lon, lat = w.world_to_pixel(30*Unit(''), 40*Unit(''))
+    >>> print(lon, lat)
+    29.0 39.0
 
-         - `~astropy.wcs.wcs.WCS.all_pix2world`: Perform all three
-           transformations in series (core WCS, SIP and table lookup
-           distortions) from pixel to world coordinates.  Use this one
-           if you're not sure which to use.
+It should be noted the following transformations can be applied:
 
-         - `~astropy.wcs.wcs.WCS.wcs_pix2world`: Perform just the core
+    1. From pixels to world coordinates:
+
+        - `~astropy.wcs.wcs.WCS.all_pix2world`: Perform all three
+            transformations in series (core WCS, SIP and table lookup
+            distortions) from pixel to world coordinates.  Use this one
+            if you're not sure which to use.
+
+        - `~astropy.wcs.wcs.WCS.wcs_pix2world`: Perform just the core
            WCS transformation from pixel to world coordinates.
 
-       - From world to pixel coordinates:
+    2. From world to pixel coordinates:
 
-         - `~astropy.wcs.wcs.WCS.all_world2pix`: Perform all three
+        - `~astropy.wcs.wcs.WCS.all_world2pix`: Perform all three
            transformations (core WCS, SIP and table lookup
            distortions) from world to pixel coordinates, using an
            iterative method if necessary.
 
-         - `~astropy.wcs.wcs.WCS.wcs_world2pix`: Perform just the core
+        - `~astropy.wcs.wcs.WCS.wcs_world2pix`: Perform just the core
            WCS transformation from world to pixel coordinates.
 
-       - Performing `SIP`_ transformations only:
+    3. Performing `SIP`_ transformations only:
 
-         - `~astropy.wcs.wcs.WCS.sip_pix2foc`: Convert from pixel to
+        - `~astropy.wcs.wcs.WCS.sip_pix2foc`: Convert from pixel to
            focal plane coordinates using the `SIP`_ polynomial
            coefficients.
 
-         - `~astropy.wcs.wcs.WCS.sip_foc2pix`: Convert from focal
+        - `~astropy.wcs.wcs.WCS.sip_foc2pix`: Convert from focal
            plane to pixel coordinates using the `SIP`_ polynomial
            coefficients.
 
-       - Performing `distortion paper`_ transformations only:
+    4. Performing `distortion paper`_ transformations only:
 
-         - `~astropy.wcs.wcs.WCS.p4_pix2foc`: Convert from pixel to
+        - `~astropy.wcs.wcs.WCS.p4_pix2foc`: Convert from pixel to
            focal plane coordinates using the table lookup distortion
            method described in the FITS WCS `distortion paper`_.
 
-         - `~astropy.wcs.wcs.WCS.det2im`: Convert from detector
+        - `~astropy.wcs.wcs.WCS.det2im`: Convert from detector
            coordinates to image coordinates.  Commonly used for narrow
            column correction.
 
-For example, to convert pixel coordinates from a two dimensional image to world coordinates::
+For example, to convert pixel coordinates from a two dimensional image
+to world coordinates::
 
     >>> from astropy.wcs import WCS
-    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
-    >>> lon, lat = w.all_pix2world(30, 40, 0)
+    >>> wcs = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
+    >>> lon, lat = wcs.all_pix2world(30, 40, 0)
     >>> print(lon, lat)
     31.0 41.0
 
+The applications of the other transformations in the above list are similar.
 
-Using `astropy.wcs`
-===================
-
-Loading WCS information from a FITS file
+Loading WCS Information from a FITS File
 ----------------------------------------
 
 This example loads a FITS file (supplied on the commandline) and uses
@@ -109,60 +147,95 @@ the WCS cards in its primary header to transform.
 .. literalinclude:: examples/from_file.py
    :language: python
 
-Building a WCS structure programmatically
------------------------------------------
+Using `astropy.wcs`
+===================
 
-This example, rather than starting from a FITS header, sets WCS values
-programmatically, uses those settings to transform some points, and then
-saves those settings to a new FITS header.
+Shared Python Interface for World Coordinate Systems
+----------------------------------------------------
 
-.. literalinclude:: examples/programmatic.py
-   :language: python
+.. toctree::
+   :maxdepth: 1
 
-.. note::
-    The members of the WCS object correspond roughly to the key/value
-    pairs in the FITS header.  However, they are adjusted and
-    normalized in a number of ways that make performing the WCS
-    transformation easier.  Therefore, they can not be relied upon to
-    get the original values in the header.  To build up a FITS header
-    directly and specifically, use `astropy.io.fits.Header` directly.
+   wcsapi.rst
+
+Legacy Interface
+----------------
+
+The following example shows how to load an imaging WCS from an extension HDU.
+The steps can be generalized to the case of a FITS file of any dimensions::
+
+    >>> from astropy.wcs import WCS
+    >>> from astropy.io import fits
+    >>> from astropy.utils.data import get_pkg_data_filename
+    >>> fn = get_pkg_data_filename('data/j94f05bgq_flt.fits', package='astropy.wcs.tests')
+    >>> hdul = fits.open(fn)
+    >>> hdul.info()  #doctest: +SKIP
+    Filename: /root/project/.tox/py36-test/lib/python3.6/site-packages/astropy/wcs/tests/data/j94f05bgq_flt.fits
+    No.    Name      Ver    Type      Cards   Dimensions   Format
+      0  PRIMARY       1 PrimaryHDU     251   ()
+      1  SCI           1 ImageHDU       184   (1, 1)   float32
+      2  ERR           1 ImageHDU        69   ()
+      3  DQ            1 ImageHDU        69   ()
+      4  SCI           2 ImageHDU       184   (1, 1)   float32
+      5  ERR           2 ImageHDU        69   ()
+      6  DQ            2 ImageHDU        69   ()
+    >>> data = hdul[1].data
+    >>> hdr = hdul[1].header
+    >>> wcs = WCS(hdr)
+    >>> wcs  #doctest: +SKIP
+    WCS Keywords
+
+    Number of WCS axes: 2
+    CTYPE : 'RA---TAN-SIP'  'DEC--TAN-SIP'
+    CRVAL : 5.63056810618  -72.05457184278998
+    CRPIX : 2048.0  1024.0
+    CD1_1 CD1_2  : 1.29056256197165e-05  5.95309123310338e-06
+    CD2_1 CD2_2  : 5.0220581265601e-06  -1.2644774105568e-05
+    NAXIS : 1  1
+
+It is a good habit to check how many extensions are there, in case the FITS file is
+of the multi-extension type.
+
+Using the Core wcslib Transforms
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Some examples of the use of the core wcslib transforms is given below with
+the `~astropy.wcs.wcs.WCS.wcs_pix2world` and `~astropy.wcs.wcs.WCS.wcs_world2pix`
+for the pixel-to-world and world-to-pixel transformations.
+
+Once the WCS object has been created, one can use the following method to convert
+from pixel to world coordinates::
+
+    >>> from astropy.wcs import WCS
+    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
+    >>> wx, wy = w.wcs_pix2world(30., 40., 1)
+    >>> print(wx, wy)
+    30.0 40.0
+
+This converts the pixel coordinates (30., 40.) to the native world coordinate system
+of the transformation. Note the third argument, set to 1, is to indicate whether
+the pixel coordinates should be treated as starting from (1, 1) (as FITS files do)
+or from (0, 0). Converting from world to pixel coordinates is similar::
+
+    >>> from astropy.wcs import WCS
+    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
+    >>> px, py = w.wcs_world2pix(30., 40., 1)
+    >>> print(px, py)
+    30.0 40.0
+
+Examples creating a WCS programmatically
+----------------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   example_create_imaging
+   example_cube_wcs
 
 .. _wcslint:
 
-Validating the WCS keywords in a FITS file
-------------------------------------------
-
-Astropy includes a commandline tool, ``wcslint`` to check the WCS
-keywords in a FITS file::
-
-    > wcslint invalid.fits
-    HDU 1:
-      WCS key ' ':
-        - RADECSYS= 'ICRS ' / Astrometric system
-          RADECSYS is non-standard, use RADESYSa.
-        - The WCS transformation has more axes (2) than the image it is
-          associated with (0)
-        - 'celfix' made the change 'PV1_5 : Unrecognized coordinate
-          transformation parameter'.
-
-    HDU 2:
-      WCS key ' ':
-        - The WCS transformation has more axes (3) than the image it is
-          associated with (0)
-        - 'celfix' made the change 'In CUNIT2 : Mismatched units type
-          'length': have 'Hz', want 'm''.
-        - 'unitfix' made the change 'Changed units: 'HZ      ' -> 'Hz''.
-
-Bounds checking
----------------
-
-Bounds checking is enabled by default, and any computed world
-coordinates outside of [-180°, 180°] for longitude and [-90°, 90°] in
-latitude are marked as invalid.  To disable this behavior, use
-`astropy.wcs.Wcsprm.bounds_check`.
-
 Supported projections
-=====================
+---------------------
 
 As `astropy.wcs` is based on `wcslib`_, it supports the standard
 projections defined in the `FITS WCS standard`_.  These projection
@@ -211,58 +284,30 @@ distortions are supported:
     for backward compatibility, ``SIP`` is handled by astropy itself
     and methods exist to handle it specially.
 
-Subsetting and Pixel Scales
-===========================
+WCS Tools
+---------
 
-WCS objects can be broken apart into their constituent axes using the
-`~astropy.wcs.WCS.sub` function.  There is also a `~astropy.wcs.WCS.celestial`
-convenience function that will return a WCS object with only the celestial axes
-included.
+.. toctree::
+   :maxdepth: 1
 
-The pixel scales of a celestial image or the pixel dimensions of a non-celestial
-image can be extracted with the utility functions
-`~astropy.wcs.utils.proj_plane_pixel_scales` and
-`~astropy.wcs.utils.non_celestial_pixel_scales`. Likewise, celestial pixel
-area can be extracted with the utility function
-`~astropy.wcs.utils.proj_plane_pixel_area`.
+   wcstools.rst
 
-Matplotlib plots with correct WCS projection
-============================================
-
-The :ref:`WCSAxes <wcsaxes>` framework, previously a standalone package, allows
-the :class:`~astropy.wcs.WCS` to be used to define projections in Matplotlib.
-More information on using WCSAxes can be found :ref:`here <wcsaxes>`.
-
-.. plot::
-    :context: reset
-    :include-source:
-    :align: center
-
-    from matplotlib import pyplot as plt
-    from astropy.io import fits
-    from astropy.wcs import WCS
-    from astropy.utils.data import get_pkg_data_filename
-
-    filename = get_pkg_data_filename('tutorials/FITS-images/HorseHead.fits')
-
-    hdu = fits.open(filename)[0]
-    wcs = WCS(hdu.header)
-
-    fig = plt.figure()
-    fig.add_subplot(111, projection=wcs)
-    plt.imshow(hdu.data, origin='lower', cmap=plt.cm.viridis)
-    plt.xlabel('RA')
-    plt.ylabel('Dec')
-
-Other information
-=================
+Relax Constants
+---------------
 
 .. toctree::
    :maxdepth: 1
 
    relax
+
+Other Information
+=================
+
+.. toctree::
+   :maxdepth: 1
+
    history
-   wcsapi
+   validation
 
 .. note that if this section gets too long, it should be moved to a separate
    doc page - see the top of performance.inc.rst for the instructions on how to do
