@@ -20,7 +20,7 @@ in Python. This API is described in the Astropy Proposal for Enhancements (APE) 
 
 The core astropy package provides base classes that define the low- and high-
 level APIs described in APE 14 in the :mod:`astropy.wcs.wcsapi` module, and
-these are listed in the `Reference/API`_ section below.
+these are listed in the :ref:`wcs-reference-api` section below.
 
 Overview
 ^^^^^^^^
@@ -198,7 +198,7 @@ And as before we can index array values using::
 If you are interested in converting to/from world values as simple Python scalars
 or Numpy arrays without using high-level astropy objects, there are methods
 such as :meth:`~astropy.wcs.wcsapi.BaseLowLevelWCS.pixel_to_world_values` to
-do this - see `Reference/API`_ for more details.
+do this - see :ref:`wcs-reference-api` section for more details.
 
 Extending the physical types in FITS-WCS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
