@@ -3771,12 +3771,7 @@ def _prepare_inputs_single_model(model, params, inputs, **kwargs):
                 broadcasts.append(max_broadcast)
 
     if max_broadcast and model.standard_broadcasting:
-        if any([isinstance(inp, Quantity) for inp in inputs]):
-            keep_units = [inp.unit for inp in inputs]
-            
-            inputs = [Quantity(np.broadcast_to(inp, max_broadcast), unit=inp.unit) for inp in inputs]
-        else:
-            inputs = [np.broadcast_to(inp, max_broadcast) for inp in inputs]
+        inputs = [np.broadcast_to(inp, max_broadcast, subok=True) for inp in inputs]
 
     if model.n_outputs > model.n_inputs:
         # Extend the broadcasts list to include shapes for all outputs
