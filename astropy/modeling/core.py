@@ -1599,8 +1599,8 @@ class Model(metaclass=_ModelMeta):
 
         params = [getattr(self, name) for name in self.param_names]
         inputs = [np.asanyarray(_input, dtype=float) for _input in inputs]
-        #_validate_input_shapes(inputs, self.inputs, n_models,
-        #                       model_set_axis, self.standard_broadcasting)
+        _validate_input_shapes(inputs, self.inputs, n_models,
+                               model_set_axis, self.standard_broadcasting)
 
         inputs_map = kwargs.get('inputs_map', None)
 
