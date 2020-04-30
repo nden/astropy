@@ -1610,9 +1610,8 @@ class Model(metaclass=_ModelMeta):
         # model set are different enough that they've been split into separate
         # subroutines
         if n_models == 1:
-            inp, format_info = _prepare_inputs_single_model(self, params, inputs,
+            return _prepare_inputs_single_model(self, params, inputs,
                                                 **kwargs)
-            return inp, format_info
         else:
             return _prepare_inputs_model_set(self, params, inputs, n_models,
                                              model_set_axis, **kwargs)
@@ -3797,7 +3796,7 @@ def _prepare_outputs_single_model(outputs, format_info):
     for idx, output in enumerate(outputs):
         broadcast_shape = broadcasts[idx]
         if broadcast_shape is not None:
-            if not broadcast_shape:# or broadcast_shape == (1,):
+            if not broadcast_shape:
                 # Shape is (), i.e. a scalar should be returned
                 outputs[idx] = output.item()
             else:
@@ -3927,9 +3926,7 @@ def _validate_input_shapes(inputs, argnames, n_models, model_set_axis,
                     "n_models={2}.".format(argname, model_set_axis,
                                            n_models))
         all_shapes.append(input_shape)
-
-    #input_shape = check_consistent_shapes(*all_shapes)
-    from astropy.utils import check_broadcast
+        
     input_shape = check_broadcast(*all_shapes)
     if input_shape is None:
         raise ValueError(
