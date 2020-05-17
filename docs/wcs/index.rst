@@ -106,7 +106,11 @@ Shared Python Interface for World Coordinate Systems
 
    wcsapi.rst
 
-.. _legacy_interface:
+.. toctree::
+   :maxdepth: 2
+
+   legacy_interface.rst
+
 
 Using the Core wcslib Transforms
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
