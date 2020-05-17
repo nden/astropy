@@ -93,7 +93,7 @@ converting from world to pixel coordinates::
     >>> w = WCS(f[1].header)
     >>> x, y = w.world_to_pixel(sky)
     >>> print(x, y)
-    30.00000214674978 39.999999958214815
+    30.00000214673885 39.999999958235094
 
 Using `astropy.wcs`
 ===================
