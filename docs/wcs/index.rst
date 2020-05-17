@@ -72,6 +72,7 @@ with default values, converting from pixel to world coordinates::
 
     >>> from astropy.io import fits
     >>> from astropy.wcs import WCS
+    >>> from astropy.utils.data import get_pkg_data_filename
     >>> fn = get_pkg_data_filename('data/j94f05bgq_flt.fits', package='astropy.wcs.tests')
     >>> f = fits.open(fn)
     >>> w = WCS(f[1].header)
@@ -86,6 +87,7 @@ converting from world to pixel coordinates::
 
     >>> from astropy.io import fits
     >>> from astropy.wcs import WCS
+    >>> from astropy.utils.data import get_pkg_data_filename
     >>> fn = get_pkg_data_filename('data/j94f05bgq_flt.fits', package='astropy.wcs.tests')
     >>> f = fits.open(fn)
     >>> w = WCS(f[1].header)
