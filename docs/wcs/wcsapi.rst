@@ -78,7 +78,7 @@ Note that the array shape should match that of the data::
     >>> hdu.data.shape  # doctest: +REMOTE_DATA
     (720, 721)
 
-As mentioned in `Pixel conventions and definitions`_, what would normally be
+As mentioned in :ref:`pixel_conventions`, what would normally be
 considered the 'y-axis' of the image (when looking at it visually) is the first
 dimension, while the 'x-axis' of the image is the second dimension. Thus
 :attr:`~astropy.wcs.WCS.array_shape` returns the shape in the *opposite* order

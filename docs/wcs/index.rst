@@ -42,6 +42,8 @@ types supported by it:
 - table lookup distortions as defined in the FITS WCS `distortion
   paper`_.
 
+.. _pixel_conventions:
+
 Pixel Conventions and Definitions
 ---------------------------------
 
@@ -61,91 +63,35 @@ depends on the method or property used, and this can normally be determined from
 the property or method name. Properties and methods containing “pixel” assume (x, y)
 ordering, while properties and methods containing “array” assume (row, column) ordering.
 
-Some Simple Examples
-====================
+A Simple Example
+================
 
 One example of the use of the high-level WCS API is to use the
 `~astropy.wcs.wcs.WCS.pixel_to_world` to yield the simplest WCS
 with default values, converting from pixel to world coordinates::
 
+    >>> from astropy.io import fits
     >>> from astropy.wcs import WCS
-    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
-    >>> lon, lat = w.pixel_to_world(30, 40)
-    >>> print(lon, lat)
-    31.0 41.0
+    >>> fn = get_pkg_data_filename('data/j94f05bgq_flt.fits', package='astropy.wcs.tests')
+    >>> f = fits.open(fn)
+    >>> w = WCS(f[1].header)
+    >>> sky = w.pixel_to_world(30, 40)
+    >>> print(sky)
+    <SkyCoord (ICRS): (ra, dec) in deg
+        (5.52844243, -72.05207809)>
 
 Similarly, another use of the high-level API is to use the
 `~astropy.wcs.wcs.WCS.world_to_pixel` to yield another simple WCS, while
 converting from world to pixel coordinates::
 
+    >>> from astropy.io import fits
     >>> from astropy.wcs import WCS
-    >>> from astropy.units import Unit
-    >>> w = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
-    >>> lon, lat = w.world_to_pixel(30*Unit(''), 40*Unit(''))
-    >>> print(lon, lat)
-    29.0 39.0
-
-It should be noted the following transformations can be applied:
-
-    1. From pixels to world coordinates:
-
-        - `~astropy.wcs.wcs.WCS.all_pix2world`: Perform all three
-            transformations in series (core WCS, SIP and table lookup
-            distortions) from pixel to world coordinates.  Use this one
-            if you're not sure which to use.
-
-        - `~astropy.wcs.wcs.WCS.wcs_pix2world`: Perform just the core
-           WCS transformation from pixel to world coordinates.
-
-    2. From world to pixel coordinates:
-
-        - `~astropy.wcs.wcs.WCS.all_world2pix`: Perform all three
-           transformations (core WCS, SIP and table lookup
-           distortions) from world to pixel coordinates, using an
-           iterative method if necessary.
-
-        - `~astropy.wcs.wcs.WCS.wcs_world2pix`: Perform just the core
-           WCS transformation from world to pixel coordinates.
-
-    3. Performing `SIP`_ transformations only:
-
-        - `~astropy.wcs.wcs.WCS.sip_pix2foc`: Convert from pixel to
-           focal plane coordinates using the `SIP`_ polynomial
-           coefficients.
-
-        - `~astropy.wcs.wcs.WCS.sip_foc2pix`: Convert from focal
-           plane to pixel coordinates using the `SIP`_ polynomial
-           coefficients.
-
-    4. Performing `distortion paper`_ transformations only:
-
-        - `~astropy.wcs.wcs.WCS.p4_pix2foc`: Convert from pixel to
-           focal plane coordinates using the table lookup distortion
-           method described in the FITS WCS `distortion paper`_.
-
-        - `~astropy.wcs.wcs.WCS.det2im`: Convert from detector
-           coordinates to image coordinates.  Commonly used for narrow
-           column correction.
-
-For example, to convert pixel coordinates from a two dimensional image
-to world coordinates::
-
-    >>> from astropy.wcs import WCS
-    >>> wcs = WCS('image.fits')  # doctest: +IGNORE_WARNINGS
-    >>> lon, lat = wcs.all_pix2world(30, 40, 0)
-    >>> print(lon, lat)
-    31.0 41.0
-
-The applications of the other transformations in the above list are similar.
-
-Loading WCS Information from a FITS File
-----------------------------------------
-
-This example loads a FITS file (supplied on the commandline) and uses
-the WCS cards in its primary header to transform.
-
-.. literalinclude:: examples/from_file.py
-   :language: python
+    >>> fn = get_pkg_data_filename('data/j94f05bgq_flt.fits', package='astropy.wcs.tests')
+    >>> f = fits.open(fn)
+    >>> w = WCS(f[1].header)
+    >>> x, y = w.world_to_pixel(sky)
+    >>> print(x, y)
+    30.00000214674978 39.999999958214815
 
 Using `astropy.wcs`
 ===================
@@ -161,40 +107,7 @@ Shared Python Interface for World Coordinate Systems
 Legacy Interface
 ----------------
 
-The following example shows how to load an imaging WCS from an extension HDU.
-The steps can be generalized to the case of a FITS file of any dimensions::
-
-    >>> from astropy.wcs import WCS
-    >>> from astropy.io import fits
-    >>> from astropy.utils.data import get_pkg_data_filename
-    >>> fn = get_pkg_data_filename('data/j94f05bgq_flt.fits', package='astropy.wcs.tests')
-    >>> hdul = fits.open(fn)
-    >>> hdul.info()  #doctest: +SKIP
-    Filename: /root/project/.tox/py36-test/lib/python3.6/site-packages/astropy/wcs/tests/data/j94f05bgq_flt.fits
-    No.    Name      Ver    Type      Cards   Dimensions   Format
-      0  PRIMARY       1 PrimaryHDU     251   ()
-      1  SCI           1 ImageHDU       184   (1, 1)   float32
-      2  ERR           1 ImageHDU        69   ()
-      3  DQ            1 ImageHDU        69   ()
-      4  SCI           2 ImageHDU       184   (1, 1)   float32
-      5  ERR           2 ImageHDU        69   ()
-      6  DQ            2 ImageHDU        69   ()
-    >>> data = hdul[1].data
-    >>> hdr = hdul[1].header
-    >>> wcs = WCS(hdr)
-    >>> wcs  #doctest: +SKIP
-    WCS Keywords
-
-    Number of WCS axes: 2
-    CTYPE : 'RA---TAN-SIP'  'DEC--TAN-SIP'
-    CRVAL : 5.63056810618  -72.05457184278998
-    CRPIX : 2048.0  1024.0
-    CD1_1 CD1_2  : 1.29056256197165e-05  5.95309123310338e-06
-    CD2_1 CD2_2  : 5.0220581265601e-06  -1.2644774105568e-05
-    NAXIS : 1  1
-
-It is a good habit to check how many extensions are there, in case the FITS file is
-of the multi-extension type.
+.. _legacy_interface:
 
 Using the Core wcslib Transforms
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
