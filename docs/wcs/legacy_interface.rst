@@ -1,5 +1,11 @@
 .. _legacy_interface:
 
+Legacy Interface
+----------------
+
+.. _distortion paper: https://www.atnf.csiro.au/people/mcalabre/WCS/dcs_20040422.pdf
+.. _SIP: https://irsa.ipac.caltech.edu/data/SPITZER/docs/files/spitzer/shupeADASS.pdf
+
 It should be noted the following transformations can be applied to the coordinates:
 
     1. From pixels to world coordinates:

@@ -106,9 +106,6 @@ Shared Python Interface for World Coordinate Systems
 
    wcsapi.rst
 
-Legacy Interface
-----------------
-
 .. _legacy_interface:
 
 Using the Core wcslib Transforms
