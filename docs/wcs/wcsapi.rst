@@ -1,5 +1,8 @@
 .. _wcsapi:
 
+Shared Python Interface for World Coordinate Systems
+****************************************************
+
 Background
 ^^^^^^^^^^
 
