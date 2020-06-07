@@ -69,7 +69,7 @@ Use one of the following transformation methods.
 
         >>> xsip, ysip = wcsobj.sip_pix2foc(30, 40, 0)
         >>> print(xsip, ysip) # +FLOAT_CMP
-        -1985.86004876, -984.42237113
+        -1985.8600487630586 -984.4223711273145
 
      - `~astropy.wcs.wcs.WCS.sip_foc2pix`: Convert from focal
         plane to pixel coordinates using the `SIP`_ polynomial
