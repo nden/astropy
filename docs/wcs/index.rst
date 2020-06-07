@@ -100,7 +100,6 @@ Using `astropy.wcs`
 
    Shared Python Interface for World Coordinate Systems <wcsapi.rst>
    Legacy Interface <legacy_interface.rst>
-   Loading From a FITS File <loading_from_fits.rst>
    Supported Projections <supported_projections>
 
 Examples creating a WCS programmatically
@@ -111,6 +110,7 @@ Examples creating a WCS programmatically
 
    Example of Imaging WCS <example_create_imaging.rst>
    Example of Cube WCS <example_cube_wcs.rst>
+   Loading From a FITS File <loading_from_fits.rst>
 
 .. _wcslint:
 
