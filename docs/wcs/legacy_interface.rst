@@ -50,7 +50,7 @@ Use one of the following transformation methods.
 
     >>> lon, lat = wcsobj.all_pix2world(30, 40, 0)
     >>> print(lon, lat)
-    5.528442425094046 -72.05207808966726 # +FLOAT_CMP
+    5.528442425094046 -72.05207808966726
 
   - `~astropy.wcs.wcs.WCS.all_world2pix`: Perform all three
      transformations (core WCS, SIP and table lookup
@@ -59,6 +59,7 @@ Use one of the following transformation methods.
 
      >>> x, y = wcsobj.all_world2pix(lon, lat, 0)
      >>> print(x, y) # +FLOAT_CMP
+     30.00000214674978 39.999999958214815
 
  2. Performing `SIP`_ transformations only:
 
@@ -66,8 +67,9 @@ Use one of the following transformation methods.
         focal plane coordinates using the `SIP`_ polynomial
         coefficients.
 
-        >>> xsip, ysip = wcsobj.sip_pix2fox(30, 40, 0)
+        >>> xsip, ysip = wcsobj.sip_pix2foc(30, 40, 0)
         >>> print(xsip, ysip) # +FLOAT_CMP
+        -1985.86004876, -984.42237113
 
      - `~astropy.wcs.wcs.WCS.sip_foc2pix`: Convert from focal
         plane to pixel coordinates using the `SIP`_ polynomial
