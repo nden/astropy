@@ -403,14 +403,12 @@ class LinearLSQFitter(metaclass=_FitterMeta):
             if hasattr(model_copy, 'domain'):
                 x = self._map_domain_window(model_copy, x)
             if has_fixed:
-                lhs = self._deriv_with_constraints(model_copy,
-                                                   fitparam_indices,
-                                                   x=x)
-                fixderivs = self._deriv_with_constraints(model_copy,
-                                                         fixparam_indices,
-                                                         x=x)
+                lhs = np.asarray(self._deriv_with_constraints(model_copy,
+                                                              fitparam_indices,
+                                                              x=x))
+                fixderivs = self._deriv_with_constraints(model_copy, fixparam_indices, x=x)
             else:
-                lhs = model_copy.fit_deriv(x, *model_copy.parameters)
+                lhs = np.asarray(model_copy.fit_deriv(x, *model_copy.parameters))
             sum_of_implicit_terms = model_copy.sum_of_implicit_terms(x)
             rhs = y
         else:
@@ -421,12 +419,13 @@ class LinearLSQFitter(metaclass=_FitterMeta):
                 x, y = self._map_domain_window(model_copy, x, y)
 
             if has_fixed:
-                lhs = self._deriv_with_constraints(model_copy,
-                                                   fitparam_indices, x=x, y=y)
+                lhs = np.asarray(self._deriv_with_constraints(model_copy,
+                                                              fitparam_indices, x=x, y=y))
                 fixderivs = self._deriv_with_constraints(model_copy,
-                                                         fixparam_indices, x=x, y=y)
+                                                         fixparam_indices,
+                                                         x=x, y=y)
             else:
-                lhs = model_copy.fit_deriv(x, y, *model_copy.parameters)
+                lhs = np.asanyarray(model_copy.fit_deriv(x, y, *model_copy.parameters))
             sum_of_implicit_terms = model_copy.sum_of_implicit_terms(x, y)
 
             if len(model_copy) > 1:
@@ -458,7 +457,7 @@ class LinearLSQFitter(metaclass=_FitterMeta):
         # when constructing their Vandermonde matrix, which can lead to obscure
         # failures below. Ultimately, np.linalg.lstsq can't handle >2D matrices,
         # so just raise a slightly more informative error when this happens:
-        if lhs.ndim > 2:
+        if np.asanyarray(lhs).ndim > 2:
             raise ValueError('{} gives unsupported >2D derivative matrix for '
                              'this x/y'.format(type(model_copy).__name__))
 
