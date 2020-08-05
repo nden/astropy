@@ -539,7 +539,7 @@ with ``model_set_axis == 1`` the shape of ``y`` should be (x, 3)::
      [5 6 2]
      [7 7 3]]
     >>> print(y.shape)
-    (3, 4)
+    (4, 3)
     >>> m = Polynomial1D(1, n_models=3, model_set_axis=1)
     >>> mfit = fitter(m, x, y)
 
