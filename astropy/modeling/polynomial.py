@@ -116,7 +116,7 @@ class PolynomialModel(PolynomialBase):
     def _generate_coeff_names(self, ndim):
         names = []
         if ndim == 1:
-            for n in range(self._order):
+            for n in range(self.get_num_coeff(self.n_inputs)):
                 names.append(f'c{n}')
         else:
             for i in range(self.degree + 1):

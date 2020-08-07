@@ -543,7 +543,7 @@ with ``model_set_axis == 1`` the shape of ``y`` should be (x, 3)::
     >>> m = Polynomial1D(1, n_models=3, model_set_axis=1)
     >>> mfit = fitter(m, x, y)
 
-For a 2D model set with ``model_set_axis == 0`` the shape of ``z`` should be (2, x, y)::
+For a Polynomial2D model set with 3 models and ``model_set_axis == 0`` the shape of ``z`` should be (3, x, y)::
 
     >>> import numpy as np
     >>> from astropy.modeling.models import Polynomial2D
@@ -551,10 +551,10 @@ For a 2D model set with ``model_set_axis == 0`` the shape of ``z`` should be (2,
     >>> fitter = LinearLSQFitter()
     >>> x = np.arange(8).reshape(2, 4)
     >>> y = x
-    >>> z = np.asarray([2 * x + 1, x + 4])
+    >>> z = np.asarray([2 * x + 1, x + 4, x + 3])
     >>> print(z.shape)
-    (2, 2, 4)
-    >>> m = Polynomial2D(1, n_models=2, model_set_axis=0)
+    (3, 2, 4)
+    >>> m = Polynomial2D(1, n_models=3, model_set_axis=0)
     >>> mfit = fitter(m, x, y, z)
 
 .. _modeling-asdf:

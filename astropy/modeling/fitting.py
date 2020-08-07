@@ -494,8 +494,8 @@ class LinearLSQFitter(metaclass=_FitterMeta):
                 lhs *= weights[:, np.newaxis]
                 rhs = rhs * weights
 
-        if rcond is None:
-            rcond = len(x) * np.finfo(x.dtype).eps
+        # if rcond is None:
+        #     rcond = len(x) * np.finfo(x.dtype).eps
 
         scl = (lhs * lhs).sum(0)
         lhs /= scl
@@ -550,7 +550,8 @@ class LinearLSQFitter(metaclass=_FitterMeta):
 
         # TODO: Only Polynomial models currently have an _order attribute;
         # maybe change this to read isinstance(model, PolynomialBase)
-        if hasattr(model_copy, '_order') and rank != model_copy._order:
+        if hasattr(model_copy, '_order') and len(model_copy) == 1 \
+            and not has_fixed and rank != model_copy._order:
             warnings.warn("The fit may be poorly conditioned\n",
                           AstropyUserWarning)
 
