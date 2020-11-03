@@ -129,7 +129,8 @@ class HighLevelWCSMixin(BaseHighLevelWCS):
         return self
 
     def world_to_pixel(self, *world_objects):
-
+        if hasattr(self.low_level_wcs, "world_to_pixel"):
+            return self.low_level_wcs(*world_objects)
         # Cache the classes and components since this may be expensive
         serialized_classes = self.low_level_wcs.world_axis_object_classes
         components = self.low_level_wcs.world_axis_object_components
@@ -234,7 +235,8 @@ class HighLevelWCSMixin(BaseHighLevelWCS):
         return pixel
 
     def pixel_to_world(self, *pixel_arrays):
-
+        if hasattr(self.low_level_wcs, "pixel_to_world"):
+            return self.low_level_wcs.pixel_to_world(*pixel_arrays)
         # Compute the world coordinate values
         world = self.low_level_wcs.pixel_to_world_values(*pixel_arrays)
 
