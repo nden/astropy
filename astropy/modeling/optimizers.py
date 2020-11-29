@@ -199,7 +199,7 @@ class Simplex(Optimization):
             'num_function_calls': None
         }
 
-    def __call__(self, objfunc, initval, fargs, **kwargs):
+    def __call__(self, objfunc, initval, **kwargs):
         """
         Run the solver.
 
@@ -225,9 +225,10 @@ class Simplex(Optimization):
             kwargs.pop('xtol')
         # Get the verbosity level
         disp = kwargs.pop('verblevel', None)
+        args = kwargs.pop('args')
 
         fitparams, final_func_val, numiter, funcalls, exit_mode = self.opt_method(
-            objfunc, initval, args=fargs, xtol=self._acc, disp=disp,
+            objfunc, initval, args, xtol=self._acc, disp=disp,
             full_output=True, **kwargs)
         self.fit_info['final_func_val'] = final_func_val
         self.fit_info['numiter'] = numiter

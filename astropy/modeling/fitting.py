@@ -331,15 +331,24 @@ class Fitter(metaclass=_FitterMeta):
         """
         return None
 
-    @abc.abstractmethod
-    def __call__(self):
+    #@abc.abstractmethod
+    def __call__(self, model, x, y, z=None, weights=None, **kwargs):
         """
         This method performs the actual fitting and modifies the parameter list
         of a model.
         Fitter subclasses should implement this method.
         """
 
-        raise NotImplementedError("Subclasses should implement this method.")
+        #raise NotImplementedError("Subclasses should implement this method.")
+        from scipy import optimize
+
+        model_copy = _validate_model(model, self.supported_constraints)
+        farg = (model_copy, weights, ) + _convert_input(x, y, z)
+        kwargs['args'] = farg
+        init_values, _ = _model_to_fit_params(model_copy)
+        result = self._opt_method(self.objective_function, init_values, **kwargs)
+        _fitter_to_model_params(model_copy, result[0])
+        return result
 
 
 # TODO: I have ongoing branch elsewhere that's refactoring this module so that
@@ -1019,7 +1028,8 @@ class FittingWithOutlierRemoval:
         return fitted_model, filtered_data.mask
 
 
-class LevMarLSQFitter(metaclass=_FitterMeta):
+#class LevMarLSQFitter(metaclass=_FitterMet):
+class LevMarLSQFitter(Fitter):
     """
     Levenberg-Marquardt algorithm and least squares statistic.
 
@@ -1061,7 +1071,8 @@ class LevMarLSQFitter(metaclass=_FitterMeta):
                          'param_jac': None,
                          'param_cov': None}
         self._calc_uncertainties=calc_uncertainties
-        super().__init__()
+        from scipy import optimize
+        super().__init__(optimize.leastsq, self.statistic)
 
     def objective_function(self, fps, *args):
         """
@@ -1084,6 +1095,9 @@ class LevMarLSQFitter(metaclass=_FitterMeta):
             return np.ravel(model(*args[2: -1]) - meas)
         else:
             return np.ravel(weights * (model(*args[2: -1]) - meas))
+
+    def statistic(self):
+        pass
 
     @staticmethod
     def _add_fitting_uncertainties(model, cov_matrix):
@@ -1144,20 +1158,23 @@ class LevMarLSQFitter(metaclass=_FitterMeta):
 
         """
 
-        from scipy import optimize
-
-        model_copy = _validate_model(model, self.supported_constraints)
-        farg = (model_copy, weights, ) + _convert_input(x, y, z)
-        if model_copy.fit_deriv is None or estimate_jacobian:
+        # from scipy import optimize
+        #
+        # model_copy = _validate_model(model, self.supported_constraints)
+        farg = (model, weights, ) + _convert_input(x, y, z)
+        if model.fit_deriv is None or estimate_jacobian:
             dfunc = None
         else:
             dfunc = self._wrap_deriv
-        init_values, _ = _model_to_fit_params(model_copy)
-        fitparams, cov_x, dinfo, mess, ierr = optimize.leastsq(
-            self.objective_function, init_values, args=farg, Dfun=dfunc,
-            col_deriv=model_copy.col_fit_deriv, maxfev=maxiter, epsfcn=epsilon,
-            xtol=acc, full_output=True)
-        _fitter_to_model_params(model_copy, fitparams)
+        init_values, _ = _model_to_fit_params(model)
+        # fitparams, cov_x, dinfo, mess, ierr = optimize.leastsq(
+        #     self.objective_function, init_values, args=farg, Dfun=dfunc,
+        #     col_deriv=model_copy.col_fit_deriv, maxfev=maxiter, epsfcn=epsilon,
+        #     xtol=acc, full_output=True)
+        # _fitter_to_model_params(model_copy, fitparams)
+        result = super().__call__(model, x,y, z, Dfun=dfunc, col_deriv=model.col_fit_deriv,
+                         maxfev=maxiter, epsfcn=epsilon, xtol=acc, full_output=True)
+        fitparams, cov_x, dinfo, mess, ierr = result
         self.fit_info.update(dinfo)
         self.fit_info['cov_x'] = cov_x
         self.fit_info['message'] = mess
@@ -1177,10 +1194,10 @@ class LevMarLSQFitter(metaclass=_FitterMeta):
 
         if self._calc_uncertainties is True:
             if self.fit_info['param_cov'] is not None:
-                self._add_fitting_uncertainties(model_copy,
+                self._add_fitting_uncertainties(model,
                                                self.fit_info['param_cov'])
 
-        return model_copy
+        return model#_copy
 
     @staticmethod
     def _wrap_deriv(params, model, weights, x, y, z=None):
@@ -1365,17 +1382,19 @@ class SimplexLSQFitter(Fitter):
 
         """
 
-        model_copy = _validate_model(model,
-                                     self._opt_method.supported_constraints)
-        farg = _convert_input(x, y, z)
-        farg = (model_copy, weights, ) + farg
-
-        init_values, _ = _model_to_fit_params(model_copy)
-
-        fitparams, self.fit_info = self._opt_method(
-            self.objective_function, init_values, farg, **kwargs)
-        _fitter_to_model_params(model_copy, fitparams)
-        return model_copy
+        # model_copy = _validate_model(model,
+        #                              self._opt_method.supported_constraints)
+        #farg = _convert_input(x, y, z)
+        #farg = (model_copy, weights, ) + farg
+        #
+        # init_values, _ = _model_to_fit_params(model_copy)
+        #
+        # fitparams, self.fit_info = self._opt_method(
+        #     self.objective_function, init_values, farg, **kwargs)
+        result = super().__call__(model, x, y, z, weights, **kwargs)
+        fitparams, self.fit_info = result
+        _fitter_to_model_params(model, fitparams)
+        return model
 
 
 class JointFitter(metaclass=_FitterMeta):
