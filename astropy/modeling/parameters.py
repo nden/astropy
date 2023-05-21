@@ -273,7 +273,32 @@ class Parameter:
         self._posterior = posterior
 
         self._std = None
+    
+    def __getstate__(self):
+        value = self.value
+        d = {
+        'name': self._name,
+        'description':self._description,
+            'default': value, #self.default,
+        'unit': self.unit,
+        'getter': self._getter,
+        'setter': self._setter,
+        'fixed': self._fixed,
+        'tied': self.tied,
+        #'min': self.min,
+        #'max': self.max,
+        'bounds': self.bounds,
+        'prior': self.prior,
+        'posterior': self.posterior,
+        'mag': self._mag,
+        }
 
+        return d
+    
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+    
     def __set_name__(self, owner, name):
         self._name = name
 

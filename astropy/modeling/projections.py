@@ -100,6 +100,33 @@ class _ParameterDS(Parameter):
         super().validate(value)
         self.dirty = True
 
+    def __getstate__(self):
+        #d = super().__getstate__()
+        #d['dirty'] = True
+        value = self.value
+        d = {
+        'name': self._name,
+        'description':self._description,
+            'default': value, # self.default,
+        'unit': self.unit,
+        'getter': self._getter,
+        'setter': self._setter,
+        'fixed': self._fixed,
+        'tied': self._tied,
+        'bounds': self._bounds,
+        'prior': self.prior,
+        'posterior': self.posterior,
+        'mag': self._mag,
+        }
+
+        return d
+
+    def __setstate__(self, state):
+        #state.pop('dirty')
+        print(f'state, {state}')
+        self.__init__(**state)
+        #self.dirty = True
+
 
 class Projection(Model):
     """Base class for all sky projections."""
@@ -164,11 +191,12 @@ class Projection(Model):
     # simple dictionary of parameter values.
 
     def __getstate__(self):
-        return {p: getattr(self, p).value for p in self.param_names}
+        return {p: getattr(self, p) for p in self.param_names}
 
     def __setstate__(self, state):
         self.__init__(**state)
 
+    
 
 class Pix2SkyProjection(Projection):
     """Base class for all Pix2Sky projections."""
@@ -1546,6 +1574,9 @@ class AffineTransformation2D(Model):
                 "Expected transformation matrix to be a 2x2 array"
             )
 
+    #def __getstate__(self):
+    #    return {p: getattr(self, p) for p in self.param_names}
+    
     @translation.validator
     def translation(self, value):
         """
