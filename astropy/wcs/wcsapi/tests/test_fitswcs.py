@@ -277,7 +277,7 @@ def test_spectral_cube():
     assert isinstance(wcs.world_axis_object_classes["celestial"][2]["frame"], Galactic)
     assert wcs.world_axis_object_classes["celestial"][2]["unit"] == (u.deg, u.deg)
 
-    assert wcs.world_axis_object_classes["spectral"][0] is Quantity
+    assert wcs.world_axis_object_classes["spectral"][0] is SpectralCoord
     assert wcs.world_axis_object_classes["spectral"][1] == ()
     assert wcs.world_axis_object_classes["spectral"][2] == {}
 
@@ -397,7 +397,7 @@ def test_spectral_cube_nonaligned():
     assert isinstance(wcs.world_axis_object_classes["celestial"][2]["frame"], Galactic)
     assert wcs.world_axis_object_classes["celestial"][2]["unit"] == (u.deg, u.deg)
 
-    assert wcs.world_axis_object_classes["spectral"][0] is Quantity
+    assert wcs.world_axis_object_classes["spectral"][0] is SpectralCoord
     assert wcs.world_axis_object_classes["spectral"][1] == ()
     assert wcs.world_axis_object_classes["spectral"][2] == {}
 

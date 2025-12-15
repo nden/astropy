@@ -12,6 +12,7 @@ from astropy.constants import c
 from astropy.coordinates import ICRS, Galactic, SpectralCoord
 from astropy.coordinates.spectral_coordinate import (
     attach_zero_velocities,
+    SpectralCoord,
     update_differentials_to_match,
 )
 from astropy.units import allclose as quantity_allclose
@@ -605,7 +606,7 @@ class FITSWCSAPIMixin(BaseLowLevelWCS, HighLevelWCSMixin):
                             - 1.0
                         )
 
-                classes["spectral"] = (u.Quantity, (), {}, spectralcoord_from_redshift)
+                classes["spectral"] = (SpectralCoord, (), {}, spectralcoord_from_redshift)
                 components[self.wcs.spec] = ("spectral", 0, redshift_from_spectralcoord)
 
             elif ctype == "BETA":
@@ -652,7 +653,7 @@ class FITSWCSAPIMixin(BaseLowLevelWCS, HighLevelWCSMixin):
                             / C_SI
                         )
 
-                classes["spectral"] = (u.Quantity, (), {}, spectralcoord_from_beta)
+                classes["spectral"] = (SpectralCoord, (), {}, spectralcoord_from_beta)
                 components[self.wcs.spec] = ("spectral", 0, beta_from_spectralcoord)
 
             else:
@@ -732,7 +733,7 @@ class FITSWCSAPIMixin(BaseLowLevelWCS, HighLevelWCSMixin):
                             observer
                         ).to_value(**kwargs)
 
-                classes["spectral"] = (u.Quantity, (), {}, spectralcoord_from_value)
+                classes["spectral"] = (SpectralCoord, (), {}, spectralcoord_from_value)
                 components[self.wcs.spec] = ("spectral", 0, value_from_spectralcoord)
 
         # We can then make sure we correctly return Time objects where appropriate
